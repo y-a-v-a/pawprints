@@ -132,3 +132,11 @@ culprit and the red herring, all three plots occur), the engine (150 seeds solva
 plot's route and by both routes to "opportunity", a script behind every answer, wrong
 accusations, the red herring breaking under pressure, save/load round trips) and the free-text
 rules ("a skilled cook" is not violence; "did u see anybody" is a question about what they saw).
+
+## License
+
+MIT, see [LICENSE](LICENSE).
+
+---
+
+© 2026 Vincent Bruijn
