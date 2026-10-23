@@ -123,11 +123,9 @@ public struct Engine: Codable, Sendable {
 
     private mutating func directive(for s: Suspect, topic: Topic) -> Directive {
         let m = mystery
-        let display = m.room(.display).name
         let gathering = m.room(.gathering)
         let quiet = m.room(.quiet)
         let rh = m.redHerring
-        let c = m.culprit
 
         switch topic {
         case .offLimits:
@@ -236,7 +234,7 @@ public struct Engine: Codable, Sendable {
                          script: "\(room.title)? I didn't set foot in it tonight, Inspector.")
 
         case .aboutOwner:
-            return .init(note: "Talk briefly about \(m.ownerName), \(m.ownerDescription). You \(s.relationship).",
+            return .init(note: "Talk briefly about \(m.ownerName), \(m.ownerDescription). You \(s.relationshipInSecondPerson).",
                          mood: s.role == .culprit ? .guarded : .friendly, reveals: [],
                          script: "\(m.ownerName.capitalizedFirst)? I \(s.relationshipInFirstPerson). A fine host, in the main.")
 
@@ -368,8 +366,6 @@ public struct Engine: Codable, Sendable {
         confessed = true
         let rh = mystery.redHerring
         composure[rh.id] = 6
-        let c = mystery.culprit
-        _ = c
         return .init(note: "You give up, embarrassed, and confess the real reason you lied.", mood: .flustered, reveals: [CardID.confession],
                      script: "Oh, very well! \(mystery.secretConfession). But I never went anywhere near \(mystery.room(.display).name), I swear it!",
                      mustContain: [mystery.secretKeyword],

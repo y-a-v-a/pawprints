@@ -71,6 +71,13 @@ public struct Suspect: Codable, Identifiable, Sendable, Hashable {
         if relationship.hasPrefix("has ") { return "have " + relationship.dropFirst(4) }
         return relationship
     }
+
+    /// The same, for telling the actor who they are: "You are the Reverend's distant cousin."
+    public var relationshipInSecondPerson: String {
+        if relationship.hasPrefix("is ") { return "are " + relationship.dropFirst(3) }
+        if relationship.hasPrefix("has ") { return "have " + relationship.dropFirst(4) }
+        return relationship
+    }
 }
 
 public struct Room: Codable, Identifiable, Sendable, Hashable {

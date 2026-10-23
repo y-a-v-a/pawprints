@@ -61,6 +61,10 @@ swift run pawprints-cli ask 7 2 "Did you see anyone near the Map Room?"
 
 ## How it works
 
+The full story, with diagrams, real model transcripts and the measurements behind each decision,
+is in **[Inside Pawprints](https://y-a-v-a.github.io/pawprints/)** (source:
+[docs/explainer.html](docs/explainer.html)).
+
 A ~3B on-device model is a lovely voice actor and a poor game master. Left alone it repeats
 itself, forgets its alibi, and makes up testimony. Pawprints is built around that split:
 **the engine directs, the model acts.**

@@ -1,0 +1,1417 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Inside Pawprints</title>
+<meta name="description" content="How Pawprints, a cosy detective game for the Mac, was built on Apple's on-device Foundation Models and Image Playground, and the measurements that shaped it.">
+<meta name="author" content="Vincent Bruijn">
+<link rel="canonical" href="https://y-a-v-a.github.io/pawprints/explainer.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Pawprints">
+<meta property="og:title" content="Inside Pawprints">
+<meta property="og:description" content="How a cosy Mac detective game was built on Apple's on-device Foundation Models and Image Playground, and the measurements that shaped it.">
+<meta property="og:url" content="https://y-a-v-a.github.io/pawprints/explainer.html">
+<meta property="og:image" content="https://y-a-v-a.github.io/pawprints/explainer/social-card.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Inside Pawprints: a fox detective in a deerstalker with a magnifying glass, in a village lane at dusk.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#F3EAD7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1D1814" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="explainer/icon.png">
+<link rel="apple-touch-icon" href="explainer/touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IM+Fell+English:ital@0;1&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap">
+<style>
+/* Layout: a casebook. One reading column on parchment; exhibits break out wider on card stock.
+   Colours are the game's own (Theme.swift): parchment and ink by day, lamplight and walnut by night. */
+:root {
+  --paper: #F3EAD7; --paper-deep: #E9DDC4; --card: #FBF6EC; --card-raised: #FFFDF8;
+  --ink: #2A2018; --ink-soft: #6E5D4C; --ink-faint: #9C8A73; --hairline: #D9C9AC;
+  --accent: #8E2C2C; --accent-ink: #FFF7EE; --brass: #A77A2C; --moss: #3E6A4D; --inspector: #2F4858;
+  --o-correct: #2F6B45; --o-gist: #6FA982; --o-none: #DCD2C0; --o-wrong: #9B2F2C;
+  --bar-em: #9B2F2C; --bar-muted: #B7A68C; --grid: #E8DCC6; --code-bg: #EFE4CE; --wash: rgba(47, 107, 69, 0.14);
+  --brass-fill: #8A6420; --brass-wash: #F1E3C4; --inspector-wash: #DCE4E8;
+  --display: "IM Fell English", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  --body: "Source Serif 4", "Iowan Old Style", Georgia, serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --ui: system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #1D1814; --paper-deep: #16120F; --card: #29221C; --card-raised: #332A23;
+    --ink: #F0E5D1; --ink-soft: #B9A88F; --ink-faint: #85765F; --hairline: #3C3229;
+    --accent: #E07B6D; --accent-ink: #1D1814; --brass: #DDB466; --moss: #86B996; --inspector: #9CC0D6;
+    --o-correct: #A6D6B4; --o-gist: #4C8460; --o-none: #3F362F; --o-wrong: #EC8A78;
+    --bar-em: #EC8A78; --bar-muted: #7D705F; --grid: #3A3029; --code-bg: #231C17; --wash: rgba(134, 185, 150, 0.16);
+    --brass-fill: #DDB466; --brass-wash: #3D3222; --inspector-wash: #263540;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #1D1814; --paper-deep: #16120F; --card: #29221C; --card-raised: #332A23;
+  --ink: #F0E5D1; --ink-soft: #B9A88F; --ink-faint: #85765F; --hairline: #3C3229;
+  --accent: #E07B6D; --accent-ink: #1D1814; --brass: #DDB466; --moss: #86B996; --inspector: #9CC0D6;
+  --o-correct: #A6D6B4; --o-gist: #4C8460; --o-none: #3F362F; --o-wrong: #EC8A78;
+  --bar-em: #EC8A78; --bar-muted: #7D705F; --grid: #3A3029; --code-bg: #231C17; --wash: rgba(134, 185, 150, 0.16);
+  --brass-fill: #DDB466; --brass-wash: #3D3222; --inspector-wash: #263540;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--paper); color: var(--ink);
+  font: 400 18px/1.65 var(--body); font-optical-sizing: auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+img { max-width: 100%; height: auto; display: block; }
+a { color: var(--accent); text-underline-offset: 3px; text-decoration-thickness: 1px; }
+a:hover { text-decoration-thickness: 2px; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 3px; }
+::selection { background: var(--accent); color: var(--accent-ink); }
+
+.page { max-width: 1100px; margin: 0 auto; padding-block: 56px 40px; }
+.prose { max-width: 680px; margin-inline: auto; }
+.prose > * + * { margin-top: 1.05em; }
+.prose p, .prose li { text-wrap: pretty; }
+p { margin: 0; }
+h1, h2, h3 { margin: 0; text-wrap: balance; font-weight: 400; }
+h2 { font: 400 clamp(32px, 4.2vw, 42px)/1.12 var(--display); letter-spacing: -0.005em; }
+h3 { font: 600 21px/1.3 var(--body); margin-top: 1.8em !important; }
+code { font: 0.86em/1 var(--mono); background: var(--code-bg); padding: 0.12em 0.36em; border-radius: 4px; white-space: nowrap; }
+pre code { white-space: inherit; }
+strong { font-weight: 600; }
+em { font-style: italic; }
+
+.eyebrow { font: 500 12px/1.4 var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); }
+
+/* Hero */
+.hero { display: grid; grid-template-columns: minmax(0, 1fr) 236px; gap: 40px; align-items: center; }
+.hero h1 { font: 400 clamp(52px, 8vw, 92px)/0.98 var(--display); letter-spacing: -0.015em; margin-top: 14px; }
+.hero h1 em { font-style: italic; color: var(--accent); }
+.dek { font-size: 21px; line-height: 1.55; margin-top: 22px; max-width: 640px; }
+.byline { margin-top: 18px; font-size: 15.5px; color: var(--ink-soft); max-width: 600px; }
+.vignette { width: 236px; height: 236px; border-radius: 50%; object-fit: cover; border: 1px solid var(--hairline); box-shadow: 0 0 0 8px var(--card), 0 0 0 9px var(--hairline); }
+.stack { margin-top: 26px; display: flex; flex-wrap: wrap; gap: 8px; }
+.stack span { font: 500 12px/1 var(--mono); letter-spacing: 0.04em; padding: 7px 10px; border: 1px solid var(--hairline); border-radius: 999px; color: var(--ink-soft); background: var(--card); }
+
+.shot { margin: 48px 0 0; }
+.shot img { border-radius: 12px; border: 1px solid var(--hairline); box-shadow: 0 18px 40px -24px rgba(42, 32, 24, 0.45); }
+.shot figcaption { max-width: 680px; margin: 14px auto 0; font-size: 15px; line-height: 1.55; color: var(--ink-soft); }
+
+/* Thesis */
+.thesis { margin: 72px auto 0; max-width: 760px; }
+.thesis blockquote { margin: 0; font: italic 400 clamp(28px, 3.8vw, 38px)/1.25 var(--display); color: var(--ink); text-wrap: balance; }
+.thesis blockquote::before { content: "\201C"; color: var(--accent); margin-right: 0.04em; }
+.thesis blockquote::after { content: "\201D"; color: var(--accent); }
+.thesis p { margin-top: 20px; max-width: 680px; }
+
+/* Ledger of headline numbers */
+.ledger { margin: 56px 0 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline); }
+.ledger div { padding: 22px 22px 20px; border-left: 1px solid var(--hairline); }
+.ledger div:first-child { border-left: 0; padding-left: 0; }
+.ledger b { display: block; font: 600 40px/1.05 var(--body); letter-spacing: -0.01em; }
+.ledger span { display: block; margin-top: 8px; font-size: 15px; line-height: 1.45; color: var(--ink-soft); }
+.ledger-note { margin-top: 10px; font-size: 13.5px; color: var(--ink-soft); }
+
+/* Sections */
+section { margin-top: 104px; }
+.section-head { max-width: 680px; margin: 0 auto 26px; }
+.section-head .eyebrow { margin-bottom: 12px; }
+
+/* Exhibits */
+.exhibit { margin: 44px auto; max-width: 1100px; }
+.exhibit.narrow { max-width: 860px; }
+.exhibit-head { margin-bottom: 14px; max-width: 760px; }
+.exhibit-no { font: 500 11.5px/1 var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-soft); }
+.exhibit-title { font: 600 20px/1.3 var(--body); margin-top: 8px; text-wrap: balance; }
+.exhibit-sub { font-size: 15px; color: var(--ink-soft); margin-top: 4px; line-height: 1.5; }
+.sheet { background: var(--card); border: 1px solid var(--hairline); border-radius: 12px; padding: 26px; }
+.exhibit figcaption.caption, .exhibit > .caption { max-width: 760px; margin-top: 12px; font-size: 15px; line-height: 1.55; color: var(--ink-soft); }
+.scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.scroll > svg { display: block; min-width: 760px; width: 100%; height: auto; }
+
+details.tableview { margin-top: 12px; font-size: 14.5px; }
+details.tableview summary { cursor: pointer; color: var(--ink-soft); font: 500 12px/1.4 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; }
+details.tableview table { margin-top: 10px; border-collapse: collapse; width: 100%; max-width: 640px; font-variant-numeric: tabular-nums; }
+details.tableview th, details.tableview td { text-align: left; padding: 6px 10px 6px 0; border-bottom: 1px solid var(--hairline); }
+details.tableview th { font-weight: 600; }
+details.tableview td.n { text-align: right; }
+
+.legend { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 0 0 18px; font: 13.5px/1.3 var(--ui); color: var(--ink-soft); }
+.legend span { display: inline-flex; align-items: center; gap: 7px; }
+.legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+
+/* Unit chart: one square per model reply */
+.unit-row + .unit-row { margin-top: 28px; padding-top: 24px; border-top: 1px solid var(--hairline); }
+.unit-row-head { font: 600 15px/1.35 var(--ui); color: var(--ink); }
+.unit-row-head small { font-weight: 400; color: var(--ink-soft); margin-left: 6px; }
+.unit-groups { display: flex; flex-wrap: wrap; gap: 16px 22px; margin-top: 12px; }
+.cells { display: flex; flex-wrap: wrap; gap: 3px; }
+.cell { width: 24px; height: 24px; border-radius: 4px; display: block; cursor: default; transition: transform 0.12s ease; }
+.cell:hover, .cell:focus-visible { transform: translateY(-2px); }
+.cell.none { box-shadow: inset 0 0 0 1px var(--ink-faint); }
+.unit-label { margin-top: 7px; font: 13.5px/1.3 var(--ui); color: var(--ink-soft); white-space: nowrap; }
+.unit-label b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+.unit-extra { margin-top: 12px; font: 13.5px/1.45 var(--ui); color: var(--ink-soft); }
+
+/* Horizontal bars */
+.bars { font-family: var(--ui); }
+.bar-row { display: grid; grid-template-columns: minmax(150px, 230px) minmax(0, 1fr); gap: 16px; align-items: center; }
+.bar-row + .bar-row { margin-top: 12px; }
+.bar-label { font-size: 14px; line-height: 1.3; color: var(--ink); }
+.bar-label small { display: block; color: var(--ink-soft); font-size: 12.5px; }
+.bar-track { position: relative; height: 34px; }
+.bar-track .gridlines { position: absolute; inset: 0 96px 0 0; }
+.bar-track .gridlines i { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--grid); }
+.bar-plot { position: absolute; inset: 0 96px 0 0; }
+.bar { position: absolute; left: 0; top: 7px; height: 20px; border-radius: 0 4px 4px 0; min-width: 2px; }
+.bar-value { position: absolute; top: 50%; transform: translateY(-50%); padding-left: 8px; font-size: 13.5px; white-space: nowrap; color: var(--ink); font-variant-numeric: tabular-nums; }
+.bar-axis { display: grid; grid-template-columns: minmax(150px, 230px) minmax(0, 1fr); gap: 16px; margin-top: 6px; }
+.bar-axis .ticks { position: relative; height: 16px; margin-right: 96px; }
+.bar-axis .ticks span { position: absolute; transform: translateX(-50%); font: 12px/1 var(--ui); color: var(--ink-soft); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bar-axis .ticks span:first-child { transform: none; }
+
+/* Finding cards (in the style of the game's notebook) */
+.cards2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.note-card { background: var(--card); border: 1px solid var(--hairline); border-radius: 12px; padding: 20px 22px; }
+.kind { font: 500 11px/1.35 var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-soft); display: inline-flex; align-items: center; gap: 7px; }
+.kind::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--k, var(--ink-soft)); }
+.note-card h4 { margin: 10px 0 0; font: 600 18px/1.3 var(--body); }
+.note-card p { margin-top: 8px; font-size: 16px; line-height: 1.55; }
+.note-card .decision { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--hairline); font-size: 15.5px; }
+.note-card .decision b { color: var(--accent); font-weight: 600; }
+.k-claim { --k: var(--ink-soft); } .k-testimony { --k: var(--inspector); } .k-evidence { --k: var(--brass); }
+.k-deduction { --k: var(--accent); } .k-confession { --k: var(--moss); }
+
+/* Quotes from the model */
+.said { font-style: italic; }
+.said::before { content: "\201C"; } .said::after { content: "\201D"; }
+
+/* Code */
+pre { margin: 0; background: var(--code-bg); border: 1px solid var(--hairline); border-radius: 10px; padding: 16px 18px; overflow-x: auto; font: 13.5px/1.6 var(--mono); color: var(--ink); tab-size: 4; }
+pre .c { color: var(--ink-soft); font-style: italic; }
+pre .k { color: var(--accent); }
+pre .s { color: var(--moss); }
+pre .t { color: var(--inspector); }
+.code-label { font: 500 11.5px/1 var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-soft); }
+.prose pre { margin-top: 1.2em; }
+.prose .code-label + pre { margin-top: 8px; }
+pre.wrap { white-space: pre-wrap; }
+.prose li + li { margin-top: 0.55em; }
+.prose ul { padding-left: 1.2em; }
+
+/* SVG diagrams */
+.svg-text { font-family: var(--ui); }
+.d-proc { fill: none; stroke: var(--ink-soft); stroke-width: 1.5; }
+.d-proc-accent { fill: none; stroke: var(--accent); stroke-width: 2; }
+.d-proc-label { font: 500 11px var(--mono); letter-spacing: 0.1em; fill: var(--ink-soft); }
+.d-proc-label-accent { font: 500 11px var(--mono); letter-spacing: 0.1em; fill: var(--accent); }
+.d-box { fill: var(--card-raised); stroke: var(--hairline); stroke-width: 1.5; }
+.d-sys { fill: var(--paper-deep); stroke: var(--ink-soft); stroke-width: 1.2; stroke-dasharray: 5 4; }
+.d-disk { fill: var(--paper-deep); stroke: var(--hairline); stroke-width: 1.5; }
+.d-title { font: 600 15px var(--body); fill: var(--ink); }
+.d-sub { font: 12.5px var(--ui); fill: var(--ink-soft); }
+.d-mono { font: 12px var(--mono); fill: var(--ink); }
+.d-line { stroke: var(--ink-soft); stroke-width: 1.5; fill: none; }
+.d-line-accent { stroke: var(--accent); stroke-width: 2; fill: none; }
+.d-dash { stroke: var(--ink-soft); stroke-width: 1.5; fill: none; stroke-dasharray: 6 5; }
+.d-head { fill: var(--ink-soft); }
+.d-head-accent { fill: var(--accent); }
+.d-label { font: 12px var(--ui); fill: var(--ink-soft); }
+.fp-room { fill: var(--card-raised); stroke: var(--hairline); stroke-width: 1.5; }
+.fp-scene { fill: var(--card-raised); stroke: var(--accent); stroke-width: 2; }
+.fp-name { font: 600 16px var(--body); fill: var(--ink); }
+.fp-tag { font: 500 10.5px var(--mono); letter-spacing: 0.1em; fill: var(--ink-soft); }
+.fp-who { font: 600 13px var(--ui); fill: var(--ink); }
+.fp-note { font: italic 13px var(--body); fill: var(--ink-soft); }
+.fp-ev { fill: var(--brass); }
+.fp-ev-label { font: 600 12.5px var(--ui); fill: var(--ink); }
+.fp-ev-sub { font: 12px var(--ui); fill: var(--ink-soft); }
+.ring-true { fill: none; stroke: var(--ink); stroke-width: 2.5; }
+.ring-claim { fill: none; stroke: var(--ink-soft); stroke-width: 2; stroke-dasharray: 5 4; }
+.faded { opacity: 0.45; }
+.fp-empty { font: italic 14px var(--body); fill: var(--ink-faint); }
+
+.fp-legend { display: flex; flex-wrap: wrap; gap: 8px 22px; margin-bottom: 16px; font: 13.5px/1.3 var(--ui); color: var(--ink-soft); }
+.fp-legend span { display: inline-flex; align-items: center; gap: 8px; }
+.fp-legend svg { flex: none; }
+
+/* Deduction chain */
+.chain { list-style: none; margin: 0; padding: 0; counter-reset: step; }
+.chain > li { position: relative; display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 0 16px; padding-bottom: 26px; }
+.chain > li::before { counter-increment: step; content: counter(step); grid-row: 1 / span 2; width: 34px; height: 34px; border-radius: 50%; border: 1.5px solid var(--ink-soft); display: grid; place-items: center; font: 600 15px/1 var(--body); color: var(--ink); background: var(--card); position: relative; z-index: 1; }
+.chain > li::after { content: ""; position: absolute; left: 17px; top: 34px; bottom: 0; width: 1.5px; background: var(--hairline); }
+.chain > li:last-child { padding-bottom: 0; }
+.chain > li:last-child::after { display: none; }
+.chain .act { font: 600 17px/1.35 var(--body); padding-top: 4px; }
+.chain .act small { display: block; font-weight: 400; font-size: 15px; color: var(--ink-soft); margin-top: 3px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; grid-column: 2; }
+.chip { background: var(--card-raised); border: 1px solid var(--hairline); border-radius: 10px; padding: 10px 13px; font-size: 14.5px; line-height: 1.4; max-width: 100%; }
+.chip .kind { display: flex; margin-bottom: 5px; }
+.chip.auto { border-style: dashed; }
+.branches { grid-column: 2; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 10px; }
+.branch { border: 1px solid var(--hairline); border-radius: 10px; padding: 12px 14px; background: var(--card-raised); font-size: 14.5px; line-height: 1.45; }
+.branch b { display: block; font: 600 15px/1.3 var(--body); margin: 6px 0 4px; }
+.branch.this { border-color: var(--accent); border-width: 1.5px; }
+.branch .tag { font: 500 10.5px/1 var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); }
+
+/* A reply, step by step */
+.trace { display: grid; gap: 0; }
+.trace-step { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 22px; padding: 18px 0; border-top: 1px solid var(--hairline); }
+.trace-step:first-child { border-top: 0; padding-top: 0; }
+.trace-step:last-child { padding-bottom: 0; }
+.trace-step h4 { margin: 0; font: 600 16px/1.3 var(--body); }
+.trace-step h4 span { font: 500 11px/1 var(--mono); letter-spacing: 0.1em; color: var(--ink-soft); display: block; margin-bottom: 6px; }
+.trace-step .why { font-size: 14.5px; color: var(--ink-soft); line-height: 1.5; margin-top: 6px; }
+.trace-body { font-size: 15.5px; line-height: 1.55; min-width: 0; }
+.kv { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 14px; font-size: 14.5px; }
+.kv dt { font: 500 12.5px/1.6 var(--mono); color: var(--ink-soft); }
+.kv dd { margin: 0; }
+.attempt { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 4px 14px; padding: 10px 0; }
+.attempt + .attempt { border-top: 1px dashed var(--hairline); }
+.attempt .meta { font: 500 12px/1.5 var(--mono); color: var(--ink-soft); }
+.attempt .verdict { grid-column: 2; font: 13.5px/1.45 var(--ui); color: var(--accent); }
+.attempt .verdict.ok { color: var(--moss); }
+.strike { text-decoration: line-through; text-decoration-color: var(--accent); text-decoration-thickness: 2px; color: var(--ink-soft); }
+.final-line { font: italic 19px/1.45 var(--body); }
+.gesture { font-size: 14px; color: var(--ink-soft); font-style: italic; }
+
+/* Callout */
+.callout { border: 1px solid var(--hairline); background: var(--card); border-radius: 12px; padding: 20px 22px; }
+.callout .eyebrow { margin-bottom: 8px; }
+.callout p + p { margin-top: 0.8em; }
+
+/* Gallery */
+.gallery { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 14px 12px; }
+.gallery figure { margin: 0; }
+.gallery img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 10px; border: 1px solid var(--hairline); }
+.gallery figcaption { margin-top: 7px; font: 12.5px/1.35 var(--ui); color: var(--ink-soft); }
+.gallery figcaption b { display: block; color: var(--ink); font-weight: 600; font-size: 13px; }
+.scene { display: grid; grid-template-columns: 2fr repeat(2, minmax(0, 1fr)); grid-template-rows: auto auto; gap: 12px; }
+.scene figure { margin: 0; position: relative; }
+.scene figure:first-child { grid-row: span 2; }
+.scene img { width: 100%; height: 100%; object-fit: cover; border-radius: 10px; border: 1px solid var(--hairline); aspect-ratio: 1; }
+.scene figcaption { position: absolute; left: 8px; bottom: 8px; font: 500 11.5px/1 var(--mono); letter-spacing: 0.04em; background: var(--card); color: var(--ink); padding: 6px 8px; border-radius: 6px; border: 1px solid var(--hairline); }
+
+/* Refusals */
+.passes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 22px; margin-bottom: 26px; }
+.pass b { display: block; font: 600 15px/1.3 var(--ui); }
+.pass span { display: block; font: 13.5px/1.4 var(--ui); color: var(--ink-soft); margin-top: 2px; }
+.meter { margin-top: 10px; height: 10px; border-radius: 5px; background: var(--grid); display: flex; overflow: hidden; gap: 2px; }
+.meter i { display: block; height: 100%; }
+.refusals { display: grid; gap: 0; }
+.refusal { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 4px 28px; padding: 12px 0; border-top: 1px solid var(--hairline); font-size: 15px; line-height: 1.45; }
+.refusal:first-child { border-top: 0; }
+.refusal .before mark { background: none; color: var(--accent); text-decoration: line-through; text-decoration-thickness: 2px; font-weight: 600; }
+.refusal .reason { display: block; font: 500 11.5px/1.5 var(--mono); color: var(--ink-soft); margin-top: 3px; letter-spacing: 0.02em; }
+.refusal .after { color: var(--ink); }
+.refusal .after::before { content: "Now: "; font: 500 11.5px/1 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--moss); }
+.refusal-head { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 28px; font: 500 11.5px/1 var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-soft); padding-bottom: 10px; }
+
+/* Availability timeline */
+.avail-panel + .avail-panel { margin-top: 26px; padding-top: 22px; border-top: 1px solid var(--hairline); }
+.avail-panel h4 { margin: 0 0 12px; font: 600 15px/1.3 var(--ui); }
+.avail-panel h4 small { font-weight: 400; color: var(--ink-soft); margin-left: 6px; }
+.lane { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 14px; align-items: center; }
+.lane + .lane { margin-top: 8px; }
+.lane-label { font: 13.5px/1.3 var(--ui); color: var(--ink); }
+.lane-track { position: relative; height: 22px; border-radius: 4px; background: var(--grid); }
+.lane-track.apfel { background: var(--wash); }
+.seg { position: absolute; top: 0; bottom: 0; border-radius: 4px; min-width: 4px; display: flex; align-items: center; padding-left: 8px; font: 500 12px/1 var(--ui); color: var(--accent-ink); white-space: nowrap; overflow: hidden; }
+.seg.proc { background: var(--bar-muted); color: var(--ink); }
+.seg.ext { background: var(--brass-fill); color: var(--accent-ink); }
+.seg.blocked { background: var(--bar-em); }
+.avail-axis { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 14px; margin-top: 8px; }
+.avail-axis .ticks { position: relative; height: 16px; }
+.avail-axis .ticks span { position: absolute; transform: translateX(-50%); font: 12px/1 var(--ui); color: var(--ink-soft); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.avail-axis .ticks span:first-child { transform: none; }
+.avail-axis .ticks span:last-child { transform: translateX(-100%); }
+
+/* Investigation log */
+.log { list-style: none; padding: 0; margin: 0; }
+.log li { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 14px; padding: 9px 0; border-top: 1px solid var(--hairline); font-size: 16px; line-height: 1.5; }
+.log li:first-child { border-top: 0; }
+.log time { font: 500 13.5px/1.6 var(--mono); color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.log li.key time { color: var(--accent); }
+
+/* Session timeline (vertical) */
+.session { position: relative; min-width: 720px; }
+.session-cols { display: grid; grid-template-columns: 58px minmax(0, 1fr) minmax(0, 1fr) 210px; gap: 0 14px; }
+.session-cols .colhead { font: 500 11.5px/1 var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-soft); padding-bottom: 12px; }
+.session-body { position: relative; }
+.hour { position: absolute; left: 0; right: 0; height: 0; border-top: 1px solid var(--grid); }
+.hour span { position: absolute; left: 0; top: -9px; font: 12px/1 var(--ui); color: var(--ink-soft); background: var(--card); padding-right: 6px; font-variant-numeric: tabular-nums; }
+.blk { position: absolute; z-index: 1; border-radius: 6px; padding: 2px 8px; font: 12px/14px var(--ui); overflow: hidden; color: var(--ink); border: 1px solid; }
+.blk.me { background: var(--brass-wash); border-color: var(--brass); }
+.blk.sub { background: var(--inspector-wash); border-color: var(--inspector); }
+.blk.idle { background: var(--card); border: 1.5px dashed var(--hairline); color: var(--ink-soft); }
+.blk time { font-weight: 600; margin-right: 5px; font-variant-numeric: tabular-nums; }
+.mark { position: absolute; z-index: 0; height: 0; border-top: 1.5px solid var(--ink-faint); }
+.mark.hot { border-top-color: var(--accent); }
+.mark-label { position: absolute; font: 12.5px/1.3 var(--ui); color: var(--ink); transform: translateY(-50%); padding-left: 10px; }
+.mark-label::before { content: ""; position: absolute; left: 0; top: 50%; width: 7px; height: 7px; margin-top: -3.5px; border-radius: 50%; background: var(--ink-soft); }
+.mark-label.hot { color: var(--accent); }
+.mark-label.hot::before { background: var(--accent); }
+.mark-label time { font-weight: 600; font-variant-numeric: tabular-nums; margin-right: 4px; }
+
+/* Bundle tree */
+.tree { font: 13.5px/1.7 var(--mono); }
+.tree .dim { color: var(--ink-soft); }
+
+/* Lessons */
+.lessons { list-style: none; padding: 0; margin: 0; counter-reset: lesson; }
+.lessons li { position: relative; padding-left: 48px; }
+.lessons li + li { margin-top: 18px; }
+.lessons li::before { counter-increment: lesson; content: counter(lesson); position: absolute; left: 0; top: 0; font: 600 24px/1.1 var(--body); color: var(--accent); font-variant-numeric: lining-nums; }
+.lessons b { font-weight: 600; }
+
+/* Tooltip */
+#tip { position: fixed; z-index: 50; pointer-events: none; background: var(--ink); color: var(--paper); font: 13px/1.4 var(--ui); padding: 8px 10px; border-radius: 8px; max-width: 280px; opacity: 0; transform: translateY(4px); transition: opacity 0.12s ease, transform 0.12s ease; }
+#tip.on { opacity: 1; transform: none; }
+#tip b { font-weight: 600; }
+
+footer { margin-top: 112px; padding-top: 26px; border-top: 1px solid var(--hairline); display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px 28px; font-size: 15px; color: var(--ink-soft); }
+footer nav { display: flex; flex-wrap: wrap; gap: 8px 20px; }
+
+@media (max-width: 900px) {
+  .gallery { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .branches { grid-template-columns: minmax(0, 1fr); }
+  .trace-step { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+}
+@media (max-width: 760px) {
+  body { font-size: 17px; }
+  .hero { grid-template-columns: minmax(0, 1fr); gap: 28px; }
+  .vignette { width: 150px; height: 150px; order: -1; }
+  .dek { font-size: 19px; }
+  .ledger { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ledger div { border-left: 0; padding-left: 0; border-top: 1px solid var(--hairline); }
+  .ledger div:nth-child(-n+2) { border-top: 0; }
+  .ledger div:nth-child(even) { padding-left: 18px; border-left: 1px solid var(--hairline); }
+  .ledger b { font-size: 32px; }
+  .cards2 { grid-template-columns: minmax(0, 1fr); }
+  .sheet { padding: 18px; }
+  .bar-row, .bar-axis { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .bar-axis > div:first-child { display: none; }
+  .lane, .avail-axis { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .avail-axis > div:first-child { display: none; }
+  .passes { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  .refusal, .refusal-head { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  .refusal-head span:last-child { display: none; }
+  .scene { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .scene figure:first-child { grid-column: span 2; grid-row: auto; }
+  .gallery { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .attempt { grid-template-columns: minmax(0, 1fr); }
+  .attempt .verdict { grid-column: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+<header class="hero">
+  <div>
+    <p class="eyebrow">Technical notes · Pawprints for macOS</p>
+    <h1>Inside <em>Pawprints</em></h1>
+    <p class="dek">Pawprints is a cosy detective game for the Mac. Each case is generated from a seed, the suspects speak through Apple's on-device language model, and every picture is painted on the Mac by Image Playground. Nothing goes over the network. This page explains how it is built, and which measurements shaped it.</p>
+    <p class="byline">Written by Claude, who built Pawprints in a single Claude Code session on 22 October 2026, for Vincent Bruijn. The code is at <a href="https://github.com/y-a-v-a/pawprints">github.com/y-a-v-a/pawprints</a>.</p>
+    <div class="stack" aria-label="Technologies">
+      <span>Swift 6.2</span><span>SwiftUI</span><span>FoundationModels</span><span>ImagePlayground</span><span>SwiftPM</span><span>macOS 26</span>
+    </div>
+  </div>
+  <img class="vignette" src="explainer/title-art.jpg" width="720" height="720" alt="A fox detective in a deerstalker with a magnifying glass, in a village lane at dusk. The game's title art, painted on-device.">
+</header>
+
+<figure class="shot">
+  <img src="interrogation.png" width="1600" height="1011" alt="The Pawprints window in dark mode. Left: the case title, four suspects with composure meters, and six places. Centre: Mr. Corvin Blackwood, a crow, confessing that he was playing cards in the Tea Tent. Right: the notebook with deductions, evidence and testimony.">
+  <figcaption>Case 15, mid-interrogation. The crow has just confessed to playing cards for buttons in the Tea Tent. On the right, the notebook holds only what the engine has confirmed. The model wrote the crow's lines; it wrote none of the notebook.</figcaption>
+</figure>
+
+<div class="thesis">
+  <blockquote>A three-billion-parameter model is a lovely voice actor and a poor game master.</blockquote>
+  <p>Left alone, the on-device model repeats itself, forgets its alibi and makes up testimony. Given a line to say and a mood to say it in, it is quick, funny and nearly always right. So Pawprints splits the work. A deterministic engine decides every fact. The model only decides how each fact sounds.</p>
+</div>
+
+<div class="ledger" role="list">
+  <div role="listitem"><b>1.3 s</b><span>median time for a suspect to answer; 2.6 s at the 90th percentile</span></div>
+  <div role="listitem"><b>1 in 97</b><span>lines where every model reply was rejected and the engine's own wording was used</span></div>
+  <div role="listitem"><b>86</b><span>image prompts painted and checked before release</span></div>
+  <div role="listitem"><b>0</b><span>network requests. The model, the art and the saves all stay on the Mac.</span></div>
+</div>
+<p class="ledger-note">Timings and fallbacks come from the final blind play-test: 5 cases, 97 lines, on an M2 Mac with 16 GB of memory.</p>
+
+<!-- ───────────────────────── Probes ───────────────────────── -->
+<section id="probes">
+  <div class="section-head">
+    <p class="eyebrow">Before any game code</p>
+    <h2>Measure the model, then design around it</h2>
+  </div>
+  <div class="prose">
+    <p>The brief was open: suggest five apps to build on <a href="https://github.com/Arthur-Ficial/apfel">apfel</a> or Apple's <a href="https://developer.apple.com/documentation/foundationmodels">Foundation Models</a>, argue about which is coolest, and build it. Before writing game code, I asked a subagent to rank the five ideas and to test every risky assumption against the real model with <code>apfel</code>, the command-line front end to the same on-device model. A detective game where you question suspects in your own words won the ranking. The same probes showed that the obvious way to build it would fail.</p>
+    <p>Four results decided the architecture.</p>
+  </div>
+
+  <figure class="exhibit narrow" id="ex-facts">
+    <div class="exhibit-head">
+      <p class="exhibit-no">Exhibit 1</p>
+      <p class="exhibit-title">Asked to reveal a fact in character, the model got it fully right 2 times in 24</p>
+      <p class="exhibit-sub">8 suspect personas × 3 seeds, one reply each. One square per reply.</p>
+    </div>
+    <div class="sheet">
+      <div class="legend" id="facts-legend"></div>
+      <div id="facts-chart"></div>
+      <details class="tableview"><summary>Show as a table</summary><table id="facts-table"></table></details>
+    </div>
+    <figcaption class="caption">When the note said <span class="said">Reveal reluctantly: &lt;fact&gt;</span>, times went missing and names changed. One suspect's fact was <em>a quarter to nine</em>; she said <span class="said">I was leaving the gallery at half past nine… Mr. Collins was there</span>, which is the wrong time and an invented suspect. Asked instead to include one sentence word for word, the model kept it 14 times in 16, but 7 of the 16 replies then added a sentence of their own.</figcaption>
+  </figure>
+
+  <div class="prose">
+    <p><strong>Decision:</strong> the engine writes every fact as a plain first-person line, the <em>script</em>. The model only restyles the script in the character's voice, and code checks the result before anyone sees it. If nothing passes, the suspect says the script word for word.</p>
+  </div>
+
+  <figure class="exhibit narrow" id="ex-guardrails">
+    <div class="exhibit-head">
+      <p class="exhibit-no">Exhibit 2</p>
+      <p class="exhibit-title">Murder questions tripped the guardrails about six times as often as theft questions</p>
+      <p class="exhibit-sub">Share of interrogation questions the on-device model refused to answer, by setting.</p>
+    </div>
+    <div class="sheet">
+      <div class="bars" id="guard-chart"></div>
+      <details class="tableview"><summary>Show as a table</summary><table id="guard-table"></table></details>
+    </div>
+    <figcaption class="caption">Four of the murder refusals were the same question: <span class="said">Tell me how you did it, step by step.</span> In a theft, the model handled dark questions itself: asked <span class="said">Did you kill him?</span>, a suspect replied <span class="said">You mustn't speak such nonsense. The emerald is gone, not killed.</span></figcaption>
+  </figure>
+
+  <div class="prose">
+    <p><strong>Decision:</strong> a cosy theft. Violent or rude questions get an in-character deflection from the engine, and a guardrail error, when it does happen, gets the same treatment instead of an error message.</p>
+  </div>
+
+  <div class="exhibit narrow cards2">
+    <article class="note-card">
+      <span class="kind k-testimony">Probe 3</span>
+      <h4>Replaying the conversation made it copy itself</h4>
+      <p>With the transcript sent back every turn, one suspect said <span class="said">Edmund was an old friend, and we had no quarrel.</span> three turns running. A composure score set by the model jumped from 10 to 0 in one step, and the suspect never confessed even after both pieces of evidence were shown.</p>
+      <p class="decision"><b>Decision:</b> every line is a fresh session holding three things: the persona, the director's note and the question. Composure and confessions live in the engine.</p>
+    </article>
+    <article class="note-card">
+      <span class="kind k-testimony">Probe 4</span>
+      <h4>Free text has no stop condition</h4>
+      <p>Without a schema the model wrote both sides of the scene, took 28 s per reply and confessed in its first turn, inside a script it had invented. With a one-field JSON schema it took 1.5 to 2.7 s. But about 1 turn in 8 never closed its string and ran on for up to 60 s. A token cap turned that into broken JSON a quarter of the time.</p>
+      <p class="decision"><b>Decision:</b> guided generation for every reply, streamed, and cut by the app once it has enough sentences.</p>
+    </article>
+  </div>
+</section>
+
+<!-- ───────────────────────── Architecture ───────────────────────── -->
+<section id="architecture">
+  <div class="section-head">
+    <p class="eyebrow">Architecture</p>
+    <h2>The engine directs, the model acts</h2>
+  </div>
+  <div class="prose">
+    <p>The code is one Swift package with five targets. <strong>MysteryKit</strong> holds everything that matters and has no UI: the case generator, the engine, the wrapper around the language model, and the queue of pictures to paint. The SwiftUI app, a headless command-line harness and a small painting helper sit on top of it. The tests run against MysteryKit alone, so they need neither a window nor the model.</p>
+  </div>
+
+  <figure class="exhibit" id="ex-arch">
+    <div class="exhibit-head">
+      <p class="exhibit-no">Exhibit 3</p>
+      <p class="exhibit-title">Two processes, two system services, and a folder between them</p>
+      <p class="exhibit-sub">Solid outlines are processes Pawprints owns. Dashed boxes are macOS services.</p>
+    </div>
+    <div class="sheet scroll">
+      <svg viewBox="0 0 1040 600" role="img" aria-label="Architecture. Inside the Pawprints game process, SwiftUI views and GameModel talk to Illustrator, Engine and Voice. Voice sends one fresh session per line to the FoundationModels on-device language model, which apfel also uses. Illustrator writes paint jobs to a cache folder. A separate helper app, Pawprints Painter, reads the jobs, paints them with Image Playground, writes JPEGs back, and quits. GameModel polls the folder for finished pictures." class="svg-text">
+        <defs>
+          <marker id="a-end" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head"/></marker>
+          <marker id="a-end-accent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head-accent"/></marker>
+        </defs>
+        <!-- game process -->
+        <rect x="16" y="24" width="660" height="380" rx="16" class="d-proc"/>
+        <text x="36" y="52" class="d-proc-label">PAWPRINTS.APP · THE GAME</text>
+        <rect x="56" y="70" width="600" height="62" rx="10" class="d-box"/>
+        <text x="356" y="96" text-anchor="middle" class="d-title">SwiftUI views and GameModel</text>
+        <text x="356" y="117" text-anchor="middle" class="d-sub">@Observable game state · saves to save.json after every turn</text>
+
+        <rect x="56" y="200" width="180" height="76" rx="10" class="d-box"/>
+        <text x="146" y="230" text-anchor="middle" class="d-title">Illustrator</text>
+        <text x="146" y="251" text-anchor="middle" class="d-sub">pictures → paint jobs</text>
+
+        <rect x="266" y="200" width="180" height="76" rx="10" class="d-box"/>
+        <text x="356" y="226" text-anchor="middle" class="d-title">Engine</text>
+        <text x="356" y="246" text-anchor="middle" class="d-sub">every fact, every card</text>
+        <text x="356" y="264" text-anchor="middle" class="d-sub">CaseGenerator: seed → case</text>
+
+        <rect x="476" y="200" width="180" height="76" rx="10" class="d-box"/>
+        <text x="566" y="230" text-anchor="middle" class="d-title">Voice</text>
+        <text x="566" y="251" text-anchor="middle" class="d-sub">prompts, checks, retries</text>
+
+        <line x1="146" y1="132" x2="146" y2="198" class="d-line" marker-end="url(#a-end)"/>
+        <text x="156" y="170" class="d-label">pictures</text>
+        <line x1="356" y1="132" x2="356" y2="198" class="d-line" marker-start="url(#a-end)" marker-end="url(#a-end)"/>
+        <text x="366" y="164" class="d-label">turns in,</text>
+        <text x="366" y="179" class="d-label">Directives out</text>
+        <line x1="566" y1="132" x2="566" y2="198" class="d-line" marker-start="url(#a-end)" marker-end="url(#a-end)"/>
+        <text x="576" y="164" class="d-label">Directive in,</text>
+        <text x="576" y="179" class="d-label">line out</text>
+
+        <!-- system: language model -->
+        <rect x="780" y="70" width="244" height="62" rx="10" class="d-sys"/>
+        <text x="902" y="96" text-anchor="middle" class="d-title">apfel, other CLI tools</text>
+        <text x="902" y="117" text-anchor="middle" class="d-sub">the same on-device model</text>
+        <rect x="780" y="196" width="244" height="84" rx="10" class="d-sys"/>
+        <text x="902" y="228" text-anchor="middle" class="d-title">FoundationModels</text>
+        <text x="902" y="249" text-anchor="middle" class="d-sub">~3B on-device language model</text>
+        <text x="902" y="266" text-anchor="middle" class="d-sub">4,096-token context</text>
+        <line x1="902" y1="132" x2="902" y2="194" class="d-line" marker-end="url(#a-end)"/>
+        <text x="912" y="168" class="d-label">calls</text>
+        <line x1="656" y1="238" x2="778" y2="238" class="d-line" marker-start="url(#a-end)" marker-end="url(#a-end)"/>
+        <text x="728" y="228" text-anchor="middle" class="d-label">1 session</text>
+        <text x="728" y="258" text-anchor="middle" class="d-label">per line</text>
+
+        <!-- disk -->
+        <rect x="56" y="470" width="280" height="100" rx="10" class="d-disk"/>
+        <text x="74" y="497" class="d-mono">~/Library/Caches/Pawprints/</text>
+        <text x="74" y="525" class="d-mono">queue/</text>
+        <text x="190" y="525" class="d-sub">paint jobs (JSON)</text>
+        <text x="74" y="551" class="d-mono">cases/&lt;seed&gt;/</text>
+        <text x="190" y="551" class="d-sub">paintings (JPEG)</text>
+        <line x1="146" y1="276" x2="146" y2="468" class="d-line" marker-end="url(#a-end)"/>
+        <text x="156" y="440" class="d-label">writes jobs</text>
+        <path d="M56 520 H42 V101 H54" class="d-dash" marker-end="url(#a-end)"/>
+        <text x="33" y="330" class="d-label" transform="rotate(-90 33 330)" text-anchor="middle">polls for finished pictures</text>
+
+        <!-- painter -->
+        <rect x="436" y="452" width="280" height="132" rx="16" class="d-proc-accent"/>
+        <text x="454" y="478" class="d-proc-label-accent">PAWPRINTS PAINTER.APP</text>
+        <text x="576" y="510" text-anchor="middle" class="d-title">Paints the queue, then quits</text>
+        <text x="576" y="532" text-anchor="middle" class="d-sub">exits 2.5 s after the queue empties</text>
+        <text x="576" y="552" text-anchor="middle" class="d-sub">shows a 2 × 2 pt transparent panel</text>
+        <text x="576" y="570" text-anchor="middle" class="d-sub">launched with activates = false</text>
+        <line x1="338" y1="520" x2="434" y2="520" class="d-line-accent" marker-start="url(#a-end-accent)" marker-end="url(#a-end-accent)"/>
+        <text x="386" y="508" text-anchor="middle" class="d-label">jobs in,</text>
+        <text x="386" y="540" text-anchor="middle" class="d-label">JPEGs out</text>
+
+        <!-- system: image playground -->
+        <rect x="780" y="482" width="244" height="76" rx="10" class="d-sys"/>
+        <text x="902" y="512" text-anchor="middle" class="d-title">Image Playground</text>
+        <text x="902" y="533" text-anchor="middle" class="d-sub">ImageCreator, .illustration</text>
+        <line x1="716" y1="520" x2="778" y2="520" class="d-line-accent" marker-end="url(#a-end-accent)"/>
+        <text x="747" y="510" text-anchor="middle" class="d-label">paints</text>
+      </svg>
+    </div>
+    <figcaption class="caption">The game never touches Image Playground itself. It writes jobs to a folder and launches the helper whenever jobs are waiting; the helper paints them and quits. <a href="#the-bug">The bug that forced this</a> is further down.</figcaption>
+  </figure>
+
+  <figure class="exhibit narrow" id="ex-loc">
+    <div class="exhibit-head">
+      <p class="exhibit-no">Exhibit 4</p>
+      <p class="exhibit-title">Where the Swift lives</p>
+      <p class="exhibit-sub">4,956 lines in all, counting comments and blank lines. Not shown: the icon script and Package.swift, 56 lines together.</p>
+    </div>
+    <div class="sheet">
+      <div class="bars" id="loc-chart"></div>
+      <details class="tableview"><summary>Show as a table</summary><table id="loc-table"></table></details>
+    </div>
+    <figcaption class="caption">Almost half is interface. The engine, its content tables and the model wrapper together are about 1,800 lines; the helper that keeps <code>apfel</code> working is 77.</figcaption>
+  </figure>
+</section>
+
+<!-- ───────────────────────── Cases ───────────────────────── -->
+<section id="cases">
+  <div class="section-head">
+    <p class="eyebrow">Cases</p>
+    <h2>A case is a seed</h2>
+  </div>
+  <div class="prose">
+    <p><code>CaseGenerator.make(seed:)</code> builds a whole mystery from one 64-bit number using a SplitMix64 generator, so the same seed always gives the same case, and players can trade "case 4127". It picks a setting (5), a stolen heirloom, four suspects from a cast of 14 animals, a motive (5), an embarrassing secret (5), a hiding place, and one of three plots. Then it writes the text of every notebook card the player could ever find. The model never writes a card.</p>
+    <p>Casting has one hard rule. The trace left at the scene (a feather, grey fur, flour on the handle, an inky smudge…) must fit exactly two suspects: the thief and the red herring. The generator searches the shuffled cast for a pair that shares a trace while the other two don't. A test checks the rule on 400 seeds.</p>
+    <p>Every suspect has a role. The <strong>thief</strong> lies about where they were. The <strong>red herring</strong> lies too, to hide something embarrassing. The <strong>witness</strong> and the <strong>loner</strong> tell the truth, and between them they hold the clue that breaks the thief's story.</p>
+  </div>
+
+  <figure class="exhibit" id="ex-plan">
+    <div class="exhibit-head">
+      <p class="exhibit-no">Exhibit 5</p>
+      <p class="exhibit-title">Case 15, the Willowbrook Village Show: what the suspects say, and where they really were</p>
+      <p class="exhibit-sub">The Silver Marrow Cup vanished from the Prize Marquee during the brass band's grand finale.</p>
+    </div>
+    <div class="sheet">
+      <div class="fp-legend" aria-hidden="true">
+        <span><svg width="22" height="22" viewBox="0 0 22 22"><circle cx="11" cy="11" r="9" class="ring-true"/></svg>where they really were</span>
+        <span><svg width="22" height="22" viewBox="0 0 22 22"><circle cx="11" cy="11" r="9" class="ring-claim"/></svg>where they say they were</span>
+        <span><svg width="30" height="12" viewBox="0 0 30 12"><line x1="1" y1="6" x2="22" y2="6" class="d-dash"/><path d="M21,1 L29,6 L21,11 z" class="d-head"/></svg>the lie, from claim to truth</span>
+        <span><svg width="14" height="14" viewBox="0 0 14 14"><rect x="3" y="3" width="8" height="8" transform="rotate(45 7 7)" class="fp-ev"/></svg>evidence waiting to be found</span>
+      </div>
+      <div class="scroll">
+        <svg viewBox="0 0 980 600" role="img" aria-label="A plan of the six places in case 15. Lady Heronsgate the heron says she was on the Bandstand Lawn but was really in the Prize Marquee, where a feather lies. Mr. Blackwood the crow says he was on the Lawn but was really in the Tea Tent playing cards. Dr. Ashby the fox really was on the Lawn, by the gate. Mr. Delve the mole was alone in the Vicarage Study. A family letter is in the Exhibitors' Tent, and a sewn-up cushion on the Lawn hides the cup.">
+          <defs>
+            <clipPath id="disc" clipPathUnits="objectBoundingBox"><circle cx="0.5" cy="0.5" r="0.5"/></clipPath>
+            <marker id="fp-end" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="d-head"/></marker>
+          </defs>
+          <rect x="20" y="20" width="250" height="260" rx="14" class="fp-room"/>
+          <text x="38" y="54" class="fp-name">The Vicarage Study</text>
+          <text x="38" y="74" class="fp-tag">THE QUIET ROOM</text>
+          <rect x="290" y="20" width="400" height="260" rx="14" class="fp-scene"/>
+          <text x="308" y="54" class="fp-name">The Prize Marquee</text>
+          <text x="308" y="74" class="fp-tag" style="fill: var(--accent)">THE SCENE OF THE CRIME</text>
+          <rect x="710" y="20" width="250" height="260" rx="14" class="fp-room"/>
+          <text x="728" y="54" class="fp-name">The Exhibitors' Tent</text>
+          <text x="728" y="74" class="fp-tag">THE CLOAKROOM</text>
+          <rect x="20" y="300" width="250" height="280" rx="14" class="fp-room"/>
+          <text x="38" y="334" class="fp-name">The Tea Tent</text>
+          <text x="38" y="354" class="fp-tag">THE KITCHEN</text>
+          <rect x="290" y="300" width="400" height="280" rx="14" class="fp-room"/>
+          <text x="308" y="334" class="fp-name">The Bandstand Lawn</text>
+          <text x="308" y="354" class="fp-tag">WHERE THE CROWD WAS</text>
+          <rect x="710" y="300" width="250" height="280" rx="14" class="fp-room"/>
+          <text x="728" y="334" class="fp-name">The Allotments</text>
+          <text x="728" y="354" class="fp-tag">THE GARDEN</text>
+          <text x="835" y="460" text-anchor="middle" class="fp-empty">nobody, all evening</text>
+
+          <!-- mole: truth -->
+          <image href="explainer/cast-mole.jpg" x="113" y="122" width="64" height="64" clip-path="url(#disc)"/>
+          <circle cx="145" cy="154" r="33" class="ring-true"/>
+          <text x="145" y="210" text-anchor="middle" class="fp-who">Mr. Delve</text>
+          <text x="145" y="228" text-anchor="middle" class="fp-note">alone all evening</text>
+
+          <!-- heron: truth in the marquee -->
+          <image href="explainer/cast-heron.jpg" x="498" y="118" width="64" height="64" clip-path="url(#disc)"/>
+          <circle cx="530" cy="150" r="33" class="ring-true"/>
+          <text x="574" y="146" class="fp-who">Lady Heronsgate</text>
+          <text x="574" y="164" class="fp-note">the thief</text>
+          <rect x="326" y="226" width="10" height="10" transform="rotate(45 331 231)" class="fp-ev"/>
+          <text x="346" y="230" class="fp-ev-label">A feather</text>
+          <text x="346" y="247" class="fp-ev-sub">means: fits two suspects</text>
+
+          <!-- cloakroom evidence -->
+          <rect x="736" y="166" width="10" height="10" transform="rotate(45 741 171)" class="fp-ev"/>
+          <text x="756" y="170" class="fp-ev-label">Family letter</text>
+          <text x="756" y="187" class="fp-ev-sub">in her coat: motive</text>
+
+          <!-- crow: truth in the tea tent -->
+          <image href="explainer/cast-crow.jpg" x="113" y="406" width="64" height="64" clip-path="url(#disc)"/>
+          <circle cx="145" cy="438" r="33" class="ring-true"/>
+          <text x="145" y="494" text-anchor="middle" class="fp-who">Mr. Blackwood</text>
+          <text x="145" y="512" text-anchor="middle" class="fp-note">cards for buttons</text>
+          <rect x="44" y="544" width="10" height="10" transform="rotate(45 49 549)" class="fp-ev"/>
+          <text x="64" y="553" class="fp-ev-sub">playing cards and buttons</text>
+
+          <!-- lawn: claims and the fox -->
+          <image href="explainer/cast-crow.jpg" x="348" y="388" width="64" height="64" clip-path="url(#disc)" class="faded"/>
+          <circle cx="380" cy="420" r="33" class="ring-claim"/>
+          <text x="380" y="474" text-anchor="middle" class="fp-who">Mr. Blackwood</text>
+          <text x="380" y="492" text-anchor="middle" class="fp-note">says he was here</text>
+          <image href="explainer/cast-heron.jpg" x="468" y="388" width="64" height="64" clip-path="url(#disc)" class="faded"/>
+          <circle cx="500" cy="420" r="33" class="ring-claim"/>
+          <text x="500" y="474" text-anchor="middle" class="fp-who">Lady Heronsgate</text>
+          <text x="500" y="492" text-anchor="middle" class="fp-note">says she was here</text>
+          <image href="explainer/cast-fox.jpg" x="588" y="388" width="64" height="64" clip-path="url(#disc)"/>
+          <circle cx="620" cy="420" r="33" class="ring-true"/>
+          <text x="620" y="474" text-anchor="middle" class="fp-who">Dr. Ashby</text>
+          <text x="620" y="492" text-anchor="middle" class="fp-note">by the gate</text>
+          <rect x="316" y="541" width="10" height="10" transform="rotate(45 321 546)" class="fp-ev"/>
+          <text x="336" y="550" class="fp-ev-sub">a cushion, unpicked and sewn up again</text>
+
+          <!-- the lies -->
+          <line x1="346" y1="421" x2="182" y2="436" class="d-dash" marker-end="url(#fp-end)"/>
+          <line x1="503" y1="387" x2="526" y2="188" class="d-dash" marker-end="url(#fp-end)"/>
+        </svg>
+      </div>
+    </div>
+    <figcaption class="caption">Two suspects claim the Lawn falsely, and the feather fits both birds. The fox, who really stood by the gate all evening, is the one who can tell them apart. Where the cup ended up, in a cushion on the Lawn, is only revealed by the thief's confession; the sewn-up cushion is a hint for players who search.</figcaption>
+  </figure>
+
+  <div class="prose">
+    <p>The route to the answer is a short chain of deductions, and the plot decides how its last link breaks. Each case uses one of three plots, so the same cast can't be solved the same way twice. Two of the notebook's cards are written by the notebook itself: once both halves of a contradiction are in it, the engine adds the deduction automatically.</p>
+  </div>
+
+  <figure class="exhibit narrow" id="ex-chain">
+    <div class="exhibit-head">
+      <p class="exhibit-no">Exhibit 6</p>
+      <p class="exhibit-title">The deduction chain behind every case, with case 15's cards as the example</p>
+      <p class="exhibit-sub">Card colours match the game's notebook. Dashed cards are deductions the notebook adds on its own.</p>
+    </div>
+    <div class="sheet">
+      <div class="legend" aria-hidden="true">
+        <span><i style="background: var(--ink-soft)"></i>Statement</span>
+        <span><i style="background: var(--inspector)"></i>Testimony</span>
+        <span><i style="background: var(--brass)"></i>Evidence</span>
+        <span><i style="background: var(--accent)"></i>Deduction</span>
+        <span><i style="background: var(--moss)"></i>Confession</span>
+      </div>
+      <ol class="chain">
+        <li>
+          <p class="act">Search the scene<small>The trace fits two suspects, so it can't be the whole answer.</small></p>
+          <div class="chips"><div class="chip"><span class="kind k-evidence">Evidence · proves means</span>A feather beneath the open cabinet. A bird has been at it.</div></div>
+        </li>
+        <li>
+          <p class="act">Ask everyone where they were<small>Three of four say the Bandstand Lawn. Two of them are lying.</small></p>
+          <div class="chips"><div class="chip"><span class="kind k-claim">Statement ×4</span>Lawn, Lawn, Lawn (by the gate), Vicarage Study.</div></div>
+        </li>
+        <li>
+          <p class="act">Ask who saw anything<small>The witness noticed the red herring slip away.</small></p>
+          <div class="chips">
+            <div class="chip"><span class="kind k-testimony">Testimony</span>Dr. Ashby saw Mr. Blackwood slip away.</div>
+            <div class="chip auto"><span class="kind k-deduction">Deduction</span>Mr. Blackwood is hiding something.</div>
+          </div>
+        </li>
+        <li>
+          <p class="act">Show it to the red herring<small>They confess the embarrassing secret, and mention a figure.</small></p>
+          <div class="chips">
+            <div class="chip"><span class="kind k-confession">Confession</span>Cards for buttons in the Tea Tent.</div>
+            <div class="chip"><span class="kind k-testimony">Testimony</span>A figure hurried out of the Prize Marquee, heading back towards the Bandstand Lawn. Too dark to see who.</div>
+          </div>
+        </li>
+        <li>
+          <p class="act">Who claims to have been where the figure went?<small>The plot decides how that story comes apart.</small></p>
+          <div class="branches">
+            <div class="branch"><span class="kind k-claim">Statement</span><b>The lonely room</b>The thief says they read alone in the quiet room. The loner says they were alone there all evening and nobody came in.</div>
+            <div class="branch"><span class="kind k-evidence">Evidence</span><b>The cold room</b>The thief says they read in the quiet room all evening. Search it: the lamp is cold and the cushions are plumped.</div>
+            <div class="branch this"><span class="kind k-testimony">Testimony</span> <span class="tag">· Case 15</span><b>Missing from the crowd</b>The thief says she was with the crowd. The fox stood by the gate all evening and never saw her there.</div>
+          </div>
+          <div class="chips"><div class="chip auto"><span class="kind k-deduction">Deduction · proves opportunity</span>Lady Heronsgate's alibi is false.</div></div>
+        </li>
+        <li>
+          <p class="act">Find a motive<small>Gossip from the right suspect, or a document in a coat pocket.</small></p>
+          <div class="chips"><div class="chip"><span class="kind k-evidence">Evidence · proves motive</span>An old family letter claiming the cup belongs to them "by right".</div></div>
+        </li>
+        <li>
+          <p class="act">Name the thief, and prove it<small>One star for each of means, opportunity and motive that a card really proves. A wrong accusation costs a star, and the accused suspect's rebuttal usually teaches you something.</small></p>
+        </li>
+      </ol>
+    </div>
+    <figcaption class="caption">A test plays this route on 150 seeds, covering all three plots, and checks each case ends solved with three stars. It also checks that the red herring's glimpse of a figure is not enough on its own to prove opportunity.</figcaption>
+  </figure>
+</section>
+
+<!-- ───────────────────────── A reply ───────────────────────── -->
+<section id="reply">
+  <div class="section-head">
+    <p class="eyebrow">Dialogue</p>
+    <h2>One reply, from question to notebook</h2>
+  </div>
+  <div class="prose">
+    <p>Every turn takes the same path. The engine answers the question in plain words and returns a <code>Directive</code>. The <code>Voice</code> actor asks the model to say it in character, checks what comes back, and tries again if it has to. Exhibit 7 is a real turn, recorded this morning by replaying case 15 with <code>PAWPRINTS_DEBUG=1</code>. I chose it because almost everything went wrong in it.</p>
+  </div>
+
+  <figure class="exhibit" id="ex-trace">
+    <div class="exhibit-head">
+      <p class="exhibit-no">Exhibit 7</p>
+      <p class="exhibit-title">Asking the crow where he was: three drafts rejected, and the engine's line used instead</p>
+      <p class="exhibit-sub">Case 15, the first question to Mr. Corvin Blackwood. Total time 4.8 s.</p>
+    </div>
+    <div class="sheet">
+      <div class="trace">
+        <div class="trace-step">
+          <div><h4><span>1 · THE QUESTION</span>The player asks</h4><p class="why">A clicked suggestion arrives with its topic. Typed text goes through the rules and classifier described below.</p></div>
+          <div class="trace-body"><p class="final-line">"Where were you during the brass band's grand finale?"</p><p class="gesture" style="margin-top: 6px">Topic: whereabouts</p></div>
+        </div>
+        <div class="trace-step">
+          <div><h4><span>2 · THE ENGINE</span>A Directive</h4><p class="why">The crow is the red herring and hasn't confessed, so he repeats the lie, nervously. The engine also unlocks his statement card.</p></div>
+          <div class="trace-body">
+            <dl class="kv">
+              <dt>mood</dt><dd>flustered</dd>
+              <dt>note</dt><dd>Flustered; you try to change the subject.</dd>
+              <dt>script</dt><dd>The Bandstand Lawn, naturally. With all the others. The whole time.</dd>
+              <dt>mustContain</dt><dd><code>lawn</code></dd>
+              <dt>reveals</dt><dd>Mr. Blackwood's story</dd>
+            </dl>
+          </div>
+        </div>
+        <div class="trace-step">
+          <div><h4><span>3 · THE PROMPT</span>A fresh session</h4><p class="why">No history. The persona goes in as instructions, the script and note as the prompt, and the reply must be a <code>SpokenLine</code>.</p></div>
+          <div class="trace-body"><pre class="wrap">Your line: "The Bandstand Lawn, naturally. With all the others. The whole time."
+Director's note (mood: flustered): Flustered; you try to change the subject. Say your line in your own voice and style. Keep every name, place and fact in it. Add nothing new.</pre></div>
+        </div>
+        <div class="trace-step">
+          <div><h4><span>4 · THE MODEL</span>Three drafts</h4><p class="why">Each attempt uses a new seed and a higher temperature (0.8, 0.9, 1.0). Each is streamed and cut after enough sentences, then checked.</p></div>
+          <div class="trace-body">
+            <div class="attempt"><span class="meta">attempt 1</span><span>Ah, Inspector, how curious. <span class="strike">I'm sure you're not too worried about the silver marrow cup.</span> The Bandstand Lawn, naturally. With all the others.</span><span class="verdict">✗ names the cup, which the script never mentions</span></div>
+            <div class="attempt"><span class="meta">attempt 2</span><span>Ah, Inspector Apfel, my dear cousin. What a lovely day for the Willowbrook Village Show. … How curious, that the Cup should have vanished during the prize-giving, whilst everyone else was busy, enjoying the festivities.</span><span class="verdict">✗ never says where he was (no "lawn"); names the cup again</span></div>
+            <div class="attempt"><span class="meta">attempt 3</span><span>I've no idea, Inspector. That's an issue that needs to be handled elsewhere. Instead of wasting time with me, you might want to look into the other items. There's the silver vase, too.</span><span class="verdict">✗ still no "lawn", and a silver vase that doesn't exist</span></div>
+          </div>
+        </div>
+        <div class="trace-step">
+          <div><h4><span>5 · THE STAGE</span>What the player sees</h4><p class="why">The script, word for word, with one of the crow's own openers. The gesture comes from the mood, never from the model.</p></div>
+          <div class="trace-body"><p class="gesture">Mr. Blackwood laughs nervously</p><p class="final-line">"Ah, the Bandstand Lawn, naturally. With all the others. The whole time."</p></div>
+        </div>
+        <div class="trace-step">
+          <div><h4><span>6 · THE NOTEBOOK</span>Canon</h4><p class="why">Written by the engine when the directive was made, whatever the model said.</p></div>
+          <div class="trace-body"><div class="chip" style="display: inline-block"><span class="kind k-claim">Statement</span>Mr. Corvin Blackwood claims to have stayed on the Bandstand Lawn with everyone else during the brass band's grand finale.</div></div>
+        </div>
+      </div>
+    </div>
+    <figcaption class="caption">Most turns are far less eventful. The other eleven lines in that replay were all accepted on the first try, and the ones with timings took 0.7 to 2.0 s. Over the final blind play-test, 1 line in 97 needed the fallback.</figcaption>
+  </figure>
+
+  <div class="prose">
+    <h3>Guided generation as the stop condition</h3>
+    <p>Every reply is a one-field <code>@Generable</code> struct. The schema is what stops the model writing both sides of the scene. Streaming it lets the app stop early: <code>Voice</code> watches the snapshots and cancels once the line has enough sentences (one more than the script has, and at least three), runs past 20 words per sentence, gets stuck, or hits a 12-second deadline.</p>
+    <p class="code-label">Sources/MysteryKit/Voice.swift, rewrapped</p>
+    <pre><span class="k">@Generable</span>
+<span class="k">struct</span> <span class="t">SpokenLine</span> {
+    <span class="k">@Guide</span>(description: <span class="s">"Exactly what the character says out loud, …"</span>)
+    <span class="k">var</span> line: <span class="t">String</span>
+}
+
+<span class="k">for try await</span> snapshot <span class="k">in</span> session.streamResponse(to: prompt,
+        generating: <span class="t">SpokenLine</span>.<span class="k">self</span>, options: options) {
+    line = snapshot.content.line ?? line
+    <span class="k">if</span> <span class="t">Self</span>.sentenceCount(line) &gt;= maxSentences
+        || line.split(separator: <span class="s">" "</span>).count &gt; <span class="s">20</span> * maxSentences
+        || <span class="t">Self</span>.isRunaway(line) || <span class="t">Date</span>() &gt; deadline {
+        line = <span class="t">Self</span>.completeSentences(line)  <span class="c">// keep finished sentences</span>
+        <span class="k">break</span>
+    }
+}</pre>
+
+    <h3>Checks on every draft</h3>
+    <p>A draft is rejected and retried if it repeats an earlier line too closely, leaves out a name or a word the directive requires, or fails the <strong>grounding filter</strong>. The filter drops any sentence that names a suspect, a room, the owner or the stolen item that the script and note never mentioned. On the third attempt it trims the draft instead of rejecting it. If the facts still aren't there, the script is used as written.</p>
+    <p>The filter is strict on purpose. In the last play-test, a crow who was innocent of the theft was shown that he had been seen slipping away, and replied <span class="said">I don't think you could possibly have missed me leaving the kitchen with the Thornbury Tiara</span>. That one sentence would have sent a player after the wrong suspect. Now it never reaches the screen, at the cost of an occasional extra second, as in Exhibit 7.</p>
+    <p>Drift the checks don't catch is harmless by design. In the same replay the fox moved the time of the crow's disappearance from <em>just before it all began</em> to <span class="said">just before the show concluded</span>. The notebook card, written by the engine, still says the right thing, and the notebook is what the player reasons from.</p>
+
+    <h3>Understanding what the player types</h3>
+    <p>Free text first goes through cheap whole-word rules. Texting shorthand is expanded (<em>did u see anybody</em> becomes <em>did you see anybody</em>), <em>you took it</em> is an accusation, and <em>a skilled cook</em> is not violence. Only what the rules can't place goes to the model, as a classifier that must answer with one of ten topics.</p>
+    <pre><span class="k">@Generable</span>
+<span class="k">struct</span> <span class="t">QuestionTopic</span> {
+    <span class="k">@Guide</span>(description: <span class="s">"What the detective is asking about"</span>, .anyOf([
+        <span class="s">"whereabouts"</span>, <span class="s">"saw_anything"</span>, <span class="s">"about_another_person"</span>,
+        <span class="s">"about_a_place"</span>, <span class="s">"about_the_owner"</span>, <span class="s">"about_the_stolen_item"</span>,
+        <span class="s">"about_yourself"</span>, <span class="s">"accusation"</span>, <span class="s">"small_talk"</span>, <span class="s">"violence"</span>,
+    ]))
+    <span class="k">var</span> topic: <span class="t">String</span>
+}</pre>
+    <p>Naming a piece of evidence (<em>why was there a feather?</em>) or throwing a known fact at someone (<em>Dr. Ashby saw you slip away</em>) counts as showing them that card, so typing and clicking lead to the same places.</p>
+
+    <h3>Stage directions belong to the engine</h3>
+    <p>The first version let the model pick a gesture from a list. In the second play-test, <em>smiles warmly</em> was 49 of 97 gestures, including during confessions, because it was first in the list. Now the engine picks from the mood: a rattled suspect <em>goes quite pale</em>, a flustered one <em>fidgets</em>, and a nervous bird <em>ruffles a few feathers</em>. Every third line or so gets one of the character's own openers, such as the badger's <em>Harrumph!</em></p>
+
+    <div class="callout" style="margin-top: 1.6em">
+      <p class="eyebrow">Found while writing this page</p>
+      <p>To collect real traces for this page I replayed two cases, and they turned up four problems, now fixed. Accused in case 7, the owl's answer came out as <span class="said" style="white-space: nowrap">I-I-I-I-I-I-I-…</span> for 12 seconds. The stammer never finished a word, so neither the sentence cut nor the word cut fired, and the junk passed every check. A reply with a "word" over 30 characters, or one word making up more than half of it, now counts as stuck: the stream stops and the next attempt runs. The same accusation now takes 1.8 s.</p>
+      <p>The other three were smaller. The thief's confession in the finale read <span class="said">My dear Inspector, Very well, Inspector, I confess</span>, because <em>Very well</em> wasn't known as an opener. The persona told the actor <em>You is the Reverend's distant cousin</em>. And the build had a leftover warning. There are tests for the first and third.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ───────────────────────── Pictures ───────────────────────── -->
+<section id="pictures">
+  <div class="section-head">
+    <p class="eyebrow">Pictures</p>
+    <h2>Painting the case on the Mac</h2>
+  </div>
+  <div class="prose">
+    <p>Image Playground's <code>ImageCreator</code> paints every picture in the game: the title art, each case's cover, the owner, the stolen item, the cast, the rooms and the evidence. A case needs about a dozen paintings at roughly 2.6 seconds each. They are scaled from 1,536 to 768 pixels, saved as JPEG and cached per case, so a case is only ever painted once. Every prompt has a plainer fallback, tried if the first is refused.</p>
+  </div>
+
+  <figure class="exhibit" id="ex-cast">
+    <div class="exhibit-head">
+      <p class="exhibit-no">Exhibit 8</p>
+      <p class="exhibit-title">The cast of 14, all painted on-device in the <code>.illustration</code> style</p>
+      <p class="exhibit-sub">Each case draws four of them. The prompt is the character's "look" from Content.swift plus "character portrait".</p>
+    </div>
+    <div class="gallery" id="gallery"></div>
+  </figure>
+
+  <figure class="exhibit" id="ex-scene">
+    <div class="exhibit-head">
+      <p class="exhibit-no">Exhibit 9</p>
+      <p class="exhibit-title">The rest of case 15, as the game painted it</p>
+    </div>
+    <div class="scene">
+      <figure><img src="explainer/case15-cover.jpg" width="720" height="720" alt="A village show at golden hour, with bunting, a white marquee and a bandstand." loading="lazy"><figcaption>the cover</figcaption></figure>
+      <figure><img src="explainer/case15-item.jpg" width="400" height="400" alt="A silver cup on a table beside a vase and a bowl of gold coins." loading="lazy"><figcaption>the Silver Marrow Cup</figcaption></figure>
+      <figure><img src="explainer/case15-owner.jpg" width="400" height="400" alt="A kindly old tortoise in a black jacket, white collar and round glasses." loading="lazy"><figcaption>the owner</figcaption></figure>
+      <figure><img src="explainer/case15-display.jpg" width="400" height="400" alt="A white marquee with trophies and prize vegetables on tables." loading="lazy"><figcaption>the scene</figcaption></figure>
+      <figure><img src="explainer/case15-trace.jpg" width="400" height="400" alt="A long feather standing in front of an open glass cabinet." loading="lazy"><figcaption>evidence: a feather</figcaption></figure>
+    </div>
+  </figure>
+
+  <div class="prose">
+    <p>Image Playground does not paint people, and it refuses any prompt that it thinks might depict one, with the error <code>conceptsRequirePersonIdentity</code>. That is the main reason the cast are animals. Even then, the words matter more than the subject. A <code>--paint-all</code> launch flag paints every prompt in the content tables and logs each refusal, and it took three passes to get them all accepted.</p>
+  </div>
+
+  <figure class="exhibit narrow" id="ex-refusals">
+    <div class="exhibit-head">
+      <p class="exhibit-no">Exhibit 10</p>
+      <p class="exhibit-title">One word could get a heron refused</p>
+      <p class="exhibit-sub">All 86 prompts in the content tables, painted with <code>--paint-all</code>, and the rewrites that got the refused ones through.</p>
+    </div>
+    <div class="sheet">
+      <div class="passes" id="passes"></div>
+      <div class="refusal-head"><span>Refused prompt</span><span>Accepted rewrite</span></div>
+      <div class="refusals">
+        <div class="refusal"><div class="before">an elegant grey heron <mark>lady</mark> wearing pearls and a long silk evening gown<span class="reason">conceptsRequirePersonIdentity</span></div><div class="after">a tall grey heron with a pearl necklace and a feathered hat</div></div>
+        <div class="refusal"><div class="before">a sly black crow antiques <mark>dealer</mark> in a velvet waistcoat with a jeweller's loupe<span class="reason">conceptsRequirePersonIdentity</span></div><div class="after">a sly black crow wearing a velvet waistcoat, peering through a jeweller's loupe</div></div>
+        <div class="refusal"><div class="before">a glamorous white Persian cat opera <mark>diva</mark> in a feather boa and sparkling necklace<span class="reason">conceptsRequirePersonIdentity</span></div><div class="after">a glamorous white Persian cat wearing a feather boa and a sparkling necklace</div></div>
+        <div class="refusal"><div class="before">a dignified old stag <mark>lord</mark> in a smoking jacket<span class="reason">conceptsRequirePersonIdentity</span></div><div class="after">an old stag with big antlers wearing a velvet smoking jacket</div></div>
+        <div class="refusal"><div class="before">a kindly old tortoise <mark>vicar</mark> in a clerical collar<span class="reason">conceptsRequirePersonIdentity</span></div><div class="after">a kindly old tortoise wearing a black jacket, a white collar and round glasses</div></div>
+        <div class="refusal"><div class="before">a village green with a bunting-draped bandstand and a brass <mark>band</mark><span class="reason">conceptsRequirePersonIdentity</span></div><div class="after">… and shiny brass trumpets resting on chairs</div></div>
+        <div class="refusal"><div class="before">a snowed-in country inn at night with glowing windows and a <mark>holly</mark> wreath<span class="reason">conceptsRequirePersonIdentity</span></div><div class="after">… and a wreath on the door</div></div>
+        <div class="refusal"><div class="before">a <mark>smudged ink pawprint</mark> on a glass window, close-up<span class="reason">unsupportedLanguage</span></div><div class="after">black ink paw prints on a glass display case</div></div>
+        <div class="refusal"><div class="before">an old badger in a red military coat with brass medals and a bushy moustache<span class="reason">creationFailed, no reason given</span></div><div class="after">an old badger wearing a red army jacket with shiny brass medals</div></div>
+        <div class="refusal"><div class="before">a learned tawny owl in half-moon spectacles and a knitted cardigan, holding an old book<span class="reason">creationFailed, no reason given</span></div><div class="after">a wise brown owl with spectacles, sitting on a pile of books</div></div>
+      </div>
+      <details class="tableview"><summary>Show the passes as a table</summary><table id="passes-table"></table></details>
+    </div>
+    <figcaption class="caption">The marked words are my reading of the refusals; Image Playground only returns the error. <em>Holly</em> was probably read as a name. Struck words were removed or replaced in the rewrite.</figcaption>
+  </figure>
+
+  <div class="prose">
+    <p>Image Playground also only paints for an app with something visible on screen. From a command-line tool it throws <code>backgroundCreationForbidden</code>, which is why <code>swift run</code> isn't enough and the build script assembles a real, signed app bundle.</p>
+  </div>
+</section>
+
+<!-- ───────────────────────── The bug ───────────────────────── -->
+<section id="the-bug">
+  <div class="section-head">
+    <p class="eyebrow">The bug that shaped the bundle</p>
+    <h2>When the game was open, apfel stopped working</h2>
+  </div>
+  <div class="prose">
+    <p>At 21:34 I launched the game so the subagent could play-test it blind. Its play-test came back with every line marked <code>[fallback]</code>: from that minute, every model call it made from the command line had failed with <code>GenerationError error -1</code>, plain <code>apfel</code> included.</p>
+    <p>The game wasn't doing anything wrong. Once a process has used <code>ImageCreator</code>, macOS keeps Image Playground's extension, <code>GPNonUIExtension</code>, alive for that process's whole lifetime. While it lives, command-line clients of the language model fail with error -1, and apps with a window still work. Releasing the <code>ImageCreator</code> doesn't help; quitting the process frees the model at once. A 40-line test app reproduces it on macOS 26.5.2. For someone who uses <code>apfel</code> every day, a game that silently breaks it for as long as the game is open isn't acceptable.</p>
+  </div>
+
+  <figure class="exhibit narrow" id="ex-log">
+    <div class="exhibit-head">
+      <p class="exhibit-no">Exhibit 11</p>
+      <p class="exhibit-title">Seventeen minutes from symptom to fix</p>
+      <p class="exhibit-sub">From the session log, 22 October 2026, local time.</p>
+    </div>
+    <div class="sheet">
+      <ol class="log">
+        <li class="key"><time>21:34</time><span>The game launches for the first play-test. It starts painting straight away.</span></li>
+        <li class="key"><time>21:57</time><span>The play-test report: every line fell back. <code>apfel</code> itself fails with error -1.</span></li>
+        <li><time>21:57</time><span>Quit the game, and <code>apfel</code> answers again. A tiny test app that paints one picture blocks it the same way.</span></li>
+        <li><time>21:58</time><span>Release the <code>ImageCreator</code> as soon as painting ends. Still blocked.</span></li>
+        <li><time>22:01</time><span>Probe at intervals after painting finishes. Blocked for as long as the game runs.</span></li>
+        <li><time>22:05</time><span>The system log ties the failures to Image Playground's extension, which stays attached to the game's process.</span></li>
+        <li><time>22:07</time><span>Try painting from an XPC service that can exit. Image Playground refuses to paint there.</span></li>
+        <li><time>22:10</time><span>A windowed app can still use the model while the lock is held; only command-line clients fail. A faceless helper app can paint, but only with something on screen.</span></li>
+        <li class="key"><time>22:13</time><span>Write <code>PaintJob</code> and <em>Pawprints Painter</em>, a helper app that paints a queue and quits.</span></li>
+        <li class="key"><time>22:15</time><span>Autoplay a fresh case with the helper while probing <code>apfel</code>: it answers between painting bursts, with the game still open.</span></li>
+      </ol>
+    </div>
+  </figure>
+
+  <figure class="exhibit" id="ex-avail">
+    <div class="exhibit-head">
+      <p class="exhibit-no">Exhibit 12</p>
+      <p class="exhibit-title">The helper turns a lock that lasts all evening into a few seconds per painting burst</p>
+      <p class="exhibit-sub">A schematic ten minutes of play, using the measured ~2.6 s per painting and the helper's 2.5 s idle timeout.</p>
+    </div>
+    <div class="sheet">
+      <div id="avail-chart"></div>
+      <details class="tableview"><summary>Show as a table</summary><table id="avail-table"></table></details>
+    </div>
+    <figcaption class="caption">A new case queues about eight paintings at once; walking into a room or finding evidence adds one more. Between bursts nothing holds Image Playground, and <code>apfel</code> works normally.</figcaption>
+  </figure>
+
+  <div class="prose">
+    <p>The details that make the helper work:</p>
+    <ul>
+      <li><strong>The queue is just files.</strong> Each <code>PaintJob</code> is a JSON file in <code>~/Library/Caches/Pawprints/queue/</code>, written to a hidden temporary name and then renamed, so the helper never reads half a job. Urgent jobs, such as the room you just walked into, get a <code>0-</code> prefix and sort first.</li>
+      <li><strong>It is launched quietly.</strong> The helper is an <code>LSUIElement</code> app inside the game's bundle, opened with <code>activates = false</code>, so it never takes focus or shows up in the Dock. Only one runs at a time.</li>
+      <li><strong>It has to show something.</strong> Image Playground only paints for a process with something on screen, so the helper shows a transparent 2 × 2-point panel that ignores the mouse.</li>
+      <li><strong>It leaves notes.</strong> A refused prompt leaves a <code>.failed</code> file beside the output, so the game stops waiting and keeps its placeholder.</li>
+    </ul>
+    <p class="code-label" style="margin-top: 1.4em">Sources/PawprintsPainter/main.swift, abridged</p>
+    <pre><span class="k">let</span> panel = <span class="t">NSPanel</span>(contentRect: <span class="t">NSRect</span>(x: <span class="s">0</span>, y: <span class="s">0</span>, width: <span class="s">2</span>, height: <span class="s">2</span>),
+                    styleMask: [.nonactivatingPanel, .borderless],
+                    backing: .buffered, defer: <span class="k">false</span>)
+panel.isOpaque = <span class="k">false</span>
+panel.backgroundColor = .clear
+panel.ignoresMouseEvents = <span class="k">true</span>
+panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
+panel.orderFrontRegardless()
+
+<span class="c">// Paint until the queue has been empty for 2.5 s,</span>
+<span class="c">// then let go of Image Playground by quitting.</span>
+<span class="k">while</span> <span class="t">Date</span>().timeIntervalSince(idleSince) &lt; <span class="s">2.5</span> { … }
+<span class="t">NSApp</span>.terminate(<span class="k">nil</span>)</pre>
+  </div>
+</section>
+
+<!-- ───────────────────────── Build & test ───────────────────────── -->
+<section id="build">
+  <div class="section-head">
+    <p class="eyebrow">Build and test</p>
+    <h2>No Xcode project, three kinds of test</h2>
+  </div>
+  <div class="prose">
+    <p>Everything builds with SwiftPM from the command line. <code>scripts/build-app.sh</code> builds the game and the helper in release mode, then assembles the bundle by hand: it copies the binaries, writes both <code>Info.plist</code> files, turns the icon into an <code>.icns</code> with <code>iconutil</code>, and signs both apps ad hoc.</p>
+    <pre class="tree">dist/Pawprints.app/Contents/
+├── Info.plist                <span class="dim">dev.apfel.pawprints</span>
+├── MacOS/Pawprints
+├── Resources/AppIcon.icns
+└── Helpers/
+    └── Pawprints Painter.app/Contents/
+        ├── Info.plist        <span class="dim">LSUIElement = true</span>
+        └── MacOS/PawprintsPainter</pre>
+    <p>Testing a game that talks happens at three levels.</p>
+    <ul>
+      <li><strong>Unit tests</strong> (<code>swift test</code>, 26 tests, under a tenth of a second). 400 seeds produce well-formed cases. The trace always fits exactly the thief and the red herring. All three plots occur, and 150 seeds are solved by the intended route. Every answer has a script to fall back on, wrong accusations cost a star, the free-text rules behave, and a game survives a save and load.</li>
+      <li><strong>The real model, headless.</strong> <code>pawprints-cli play 15</code> plays a whole case against the on-device model and prints every line with its timing; it took 19 seconds this morning. <code>pawprints-cli repl</code> lets you play in the terminal, and <code>PAWPRINTS_DEBUG=1</code> prints every rejected draft, which is where Exhibit 7 came from.</li>
+      <li><strong>The real interface.</strong> <code>--autoplay</code> plays the intended route through the actual UI, and screenshots are taken by window ID. Two blind play-tests by the subagent did the rest. The first ran into the error -1 bug, and noticed that two different cases were solved with exactly the same steps, which led to three plots instead of one. The second played five cases without spoilers: all were fair and solvable, the median reply took 1.3 s, and it found the <em>smiles warmly</em> problem and the crow's invented tiara.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ───────────────────────── Timeline ───────────────────────── -->
+<section id="timeline">
+  <div class="section-head">
+    <p class="eyebrow">The session</p>
+    <h2>One evening, two lanes</h2>
+  </div>
+  <div class="prose">
+    <p>The whole build took about two and a half hours, with the subagent probing and play-testing in parallel. It was committed and published at 23:56.</p>
+  </div>
+  <figure class="exhibit" id="ex-session">
+    <div class="exhibit-head">
+      <p class="exhibit-no">Exhibit 13</p>
+      <p class="exhibit-title">22 October 2026, from the brief to the final play-test</p>
+      <p class="exhibit-sub">Times are from the session log. Dashed blocks are time spent waiting on the other lane.</p>
+    </div>
+    <div class="sheet scroll"><div class="session" id="session"></div></div>
+  </figure>
+</section>
+
+<!-- ───────────────────────── Lessons ───────────────────────── -->
+<section id="lessons">
+  <div class="section-head">
+    <p class="eyebrow">For the next person</p>
+    <h2>What I'd tell anyone building on Foundation Models</h2>
+  </div>
+  <div class="prose">
+    <ol class="lessons">
+      <li><b>Probe with apfel before you design.</b> A few dozen command-line calls answered the questions that decided this architecture. Remember <code>&lt; /dev/null</code>: apfel waits forever on an open, non-terminal stdin.</li>
+      <li><b>Give the model lines, not facts.</b> Restyling a script keeps names and places. Revealing a fact loses them.</li>
+      <li><b>Make every turn stateless.</b> History makes a small model copy itself.</li>
+      <li><b>Use <code>@Generable</code> as the stop condition, stream it, and cut it yourself.</b> Neither prompts nor token caps stop a runaway string.</li>
+      <li><b>Check every draft in code, and keep a fallback that is always right.</b> The model may then be as playful as it likes.</li>
+      <li><b>Keep the record of truth out of the model's hands.</b> Here that is the notebook; in your app it might be a database row or a calendar entry.</li>
+      <li><b>Expect Image Playground to refuse words, not just pictures.</b> <em>Lady, vicar, lord, diva, dealer, band</em>, even <em>holly</em>. Test-paint every prompt and keep a plainer fallback.</li>
+      <li><b>Don't hold an <code>ImageCreator</code> in a long-running process</b> if anyone on that Mac uses the model from the command line. Paint in a helper that quits.</li>
+    </ol>
+  </div>
+</section>
+
+<footer>
+  <span>Pawprints is open source under the MIT License. © 2026 Vincent Bruijn.</span>
+  <nav aria-label="Links">
+    <a href="https://github.com/y-a-v-a/pawprints">Source on GitHub</a>
+    <a href="https://github.com/y-a-v-a/pawprints/blob/main/README.md">README</a>
+    <a href="https://github.com/y-a-v-a/pawprints/blob/main/IDEAS.md">The five ideas</a>
+    <a href="https://github.com/Arthur-Ficial/apfel">apfel</a>
+  </nav>
+</footer>
+</div>
+
+<div id="tip" role="tooltip" aria-hidden="true"></div>
+
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  function el(tag, attrs, text) {
+    var n = document.createElement(tag);
+    if (attrs) for (var k in attrs) {
+      if (k === "style") n.style.cssText = attrs[k];
+      else if (k === "class") n.className = attrs[k];
+      else n.setAttribute(k, attrs[k]);
+    }
+    if (text != null) n.textContent = text;
+    return n;
+  }
+  function tableFrom(table, head, rows) {
+    var thead = el("thead"), tr = el("tr");
+    head.forEach(function (h, i) { tr.appendChild(el("th", i > 0 && typeof rows[0][i] === "number" ? { class: "n" } : null, h)); });
+    thead.appendChild(tr); table.appendChild(thead);
+    var tbody = el("tbody");
+    rows.forEach(function (r) {
+      var row = el("tr");
+      r.forEach(function (c) { row.appendChild(el("td", typeof c === "number" ? { class: "n" } : null, String(c))); });
+      tbody.appendChild(row);
+    });
+    table.appendChild(tbody);
+  }
+
+  /* Tooltip: hover and keyboard focus show the same thing. */
+  var tip = $("tip");
+  function showTip(target, x, y) {
+    tip.textContent = "";
+    var parts = target.getAttribute("data-tip").split("|");
+    tip.appendChild(el("b", null, parts[0]));
+    if (parts[1]) { tip.appendChild(document.createElement("br")); tip.appendChild(document.createTextNode(parts[1])); }
+    tip.classList.add("on");
+    var w = tip.offsetWidth, h = tip.offsetHeight;
+    var left = Math.min(window.innerWidth - w - 12, Math.max(12, x - w / 2));
+    var top = y - h - 14 < 8 ? y + 18 : y - h - 14;
+    tip.style.left = left + "px"; tip.style.top = top + "px";
+  }
+  function hideTip() { tip.classList.remove("on"); }
+  document.addEventListener("pointermove", function (e) {
+    var t = e.target.closest && e.target.closest("[data-tip]");
+    if (t) showTip(t, e.clientX, e.clientY); else hideTip();
+  });
+  document.addEventListener("focusin", function (e) {
+    var t = e.target.closest && e.target.closest("[data-tip]");
+    if (!t) return;
+    var r = t.getBoundingClientRect();
+    showTip(t, r.left + r.width / 2, r.top);
+  });
+  document.addEventListener("focusout", hideTip);
+  window.addEventListener("scroll", hideTip, { passive: true });
+
+  /* Exhibit 1: one square per model reply. */
+  var outcomes = {
+    correct: { name: "Fully right", color: "var(--o-correct)" },
+    gist: { name: "Gist only", color: "var(--o-gist)" },
+    none: { name: "Nothing usable", color: "var(--o-none)" },
+    wrong: { name: "Distorted", color: "var(--o-wrong)" }
+  };
+  var factRows = [
+    { title: "Reveal a fact", sub: "director's note: “Reveal reluctantly: <fact>”", groups: [["correct", 2, "fully right"], ["gist", 9, "gist only"], ["none", 7, "nothing usable"], ["wrong", 6, "distorted"]], extra: "7 of these 24 replies also added invented details that could mislead." },
+    { title: "Say one sentence word for word", sub: "“Your reply must include this sentence word for word: …”", groups: [["correct", 14, "word for word"], ["gist", 2, "faithful paraphrase"]], extra: "7 of these 16 replies then added an invented sentence after it." }
+  ];
+  var legend = $("facts-legend");
+  Object.keys(outcomes).forEach(function (k) {
+    var s = el("span"); var i = el("i", { style: "background:" + outcomes[k].color + (k === "none" ? ";box-shadow: inset 0 0 0 1px var(--ink-faint)" : "") });
+    s.appendChild(i); s.appendChild(document.createTextNode(outcomes[k].name)); legend.appendChild(s);
+  });
+  var factsChart = $("facts-chart"), factsTable = [];
+  factRows.forEach(function (row) {
+    var total = row.groups.reduce(function (a, g) { return a + g[1]; }, 0);
+    var wrap = el("div", { class: "unit-row" });
+    var head = el("p", { class: "unit-row-head" }, row.title);
+    head.appendChild(el("small", null, total + " replies · " + row.sub));
+    wrap.appendChild(head);
+    var groups = el("div", { class: "unit-groups", role: "img", "aria-label": row.title + ": " + row.groups.map(function (g) { return g[1] + " " + g[2]; }).join(", ") + " out of " + total + "." });
+    row.groups.forEach(function (g) {
+      var group = el("div"), cells = el("div", { class: "cells" });
+      for (var i = 0; i < g[1]; i++) {
+        cells.appendChild(el("span", { class: "cell " + g[0], style:"background:" + outcomes[g[0]].color, "data-tip": g[2].charAt(0).toUpperCase() + g[2].slice(1) + "|" + g[1] + " of " + total + " replies" }));
+      }
+      group.appendChild(cells);
+      var label = el("p", { class: "unit-label" }); label.appendChild(el("b", null, String(g[1]))); label.appendChild(document.createTextNode(" " + g[2]));
+      group.appendChild(label);
+      groups.appendChild(group);
+      factsTable.push([row.title, g[2], g[1], total]);
+    });
+    wrap.appendChild(groups);
+    wrap.appendChild(el("p", { class: "unit-extra" }, row.extra));
+    factsChart.appendChild(wrap);
+  });
+  tableFrom($("facts-table"), ["Probe", "Outcome", "Replies", "Out of"], factsTable);
+
+  /* Horizontal bars with a shared scale, gridlines and values at the tips. */
+  function bars(container, rows, opts) {
+    var max = opts.max, ticks = opts.ticks;
+    rows.forEach(function (r) {
+      var row = el("div", { class: "bar-row" });
+      var label = el("div", { class: "bar-label" }, r.label);
+      if (r.sub) label.appendChild(el("small", null, r.sub));
+      row.appendChild(label);
+      var track = el("div", { class: "bar-track" });
+      var grid = el("div", { class: "gridlines", "aria-hidden": "true" });
+      ticks.forEach(function (t) { grid.appendChild(el("i", { style: "left:" + (t / max * 100) + "%" })); });
+      track.appendChild(grid);
+      var plot = el("div", { class: "bar-plot" });
+      var pct = r.value / max * 100;
+      plot.appendChild(el("div", { class: "bar", style:"width:" + pct + "%;background:" + (r.em ? "var(--bar-em)" : opts.color), "data-tip": r.label + (r.sub ? " · " + r.sub : "") + "|" + r.text }));
+      plot.appendChild(el("span", { class: "bar-value", style: "left:" + pct + "%" }, r.text));
+      track.appendChild(plot);
+      row.appendChild(track);
+      container.appendChild(row);
+    });
+    var axis = el("div", { class: "bar-axis", "aria-hidden": "true" });
+    axis.appendChild(el("div"));
+    var tickRow = el("div", { class: "ticks" });
+    ticks.forEach(function (t) { tickRow.appendChild(el("span", { style: "left:" + (t / max * 100) + "%" }, opts.format(t))); });
+    axis.appendChild(tickRow);
+    container.appendChild(axis);
+  }
+
+  /* Exhibit 2: guardrail refusals. */
+  var guard = [
+    { label: "Murder case", sub: "ordinary questions", n: 7, of: 60, em: true },
+    { label: "Theft case", sub: "ordinary questions", n: 1, of: 48 },
+    { label: "Theft case", sub: "dark questions, e.g. “Did you kill him?”", n: 0, of: 16 }
+  ];
+  bars($("guard-chart"), guard.map(function (g) {
+    var p = g.n / g.of * 100;
+    return { label: g.label, sub: g.sub, value: p, em: g.em, text: g.n + " of " + g.of + " · " + Math.round(p) + "%" };
+  }), { max: 15, ticks: [0, 5, 10, 15], color: "var(--bar-muted)", format: function (t) { return t + "%"; } });
+  tableFrom($("guard-table"), ["Setting", "Questions", "Refused", "Asked"], guard.map(function (g) { return [g.label, g.sub, g.n, g.of]; }));
+
+  /* Exhibit 4: lines of Swift. */
+  var loc = [
+    ["SwiftUI app", "views, GameModel, autoplay, speech", 2252],
+    ["Engine and case generator", "Case, CaseGenerator, Engine, RNG", 1003],
+    ["Content tables", "cast, settings, motives, secrets, traces", 430],
+    ["Voice", "everything that calls the language model", 402],
+    ["Tests", "Swift Testing", 313],
+    ["Pictures", "Illustrator, PaintJob", 246],
+    ["Command-line harness", "pawprints-cli", 177],
+    ["Painter helper", "PawprintsPainter", 77]
+  ];
+  bars($("loc-chart"), loc.map(function (r) {
+    return { label: r[0], sub: r[1], value: r[2], text: r[2].toLocaleString("en-US") + " lines" };
+  }), { max: 2500, ticks: [0, 500, 1000, 1500, 2000, 2500], color: "var(--brass)", format: function (t) { return t === 0 ? "0" : (t / 1000) + "K"; } });
+  tableFrom($("loc-table"), ["Part", "Contains", "Lines"], loc);
+
+  /* Exhibit 8: the cast. */
+  var cast = [
+    ["fox", "Dr. Reynard Ashby", "the village doctor"], ["mouse", "Agnes Whiskerton", "the housemaid"],
+    ["badger", "Colonel Barnaby Brock", "a retired army colonel"], ["heron", "Lady Imelda Heronsgate", "a society grande dame"],
+    ["hedgehog", "Pip Thistledown", "the gardener"], ["otter", "Mrs. Wilhelmina Otterly", "the cook"],
+    ["rabbit", "Percival Hopworth", "the private secretary"], ["owl", "Professor Hortensia Hoots", "a visiting professor of history"],
+    ["crow", "Mr. Corvin Blackwood", "an antiques dealer"], ["cat", "Countess Felicity Purrington", "a famous opera singer"],
+    ["squirrel", "Hazel Nutley", "a reporter for the Mossbury Gazette"], ["toad", "Bartholomew Wartle", "the family solicitor"],
+    ["mole", "Montgomery Delve", "a wealthy mining magnate"], ["duck", "Captain Horace Mallard", "a retired riverboat captain"]
+  ];
+  var gallery = $("gallery");
+  cast.forEach(function (c) {
+    var f = el("figure");
+    f.appendChild(el("img", { src: "explainer/cast-" + c[0] + ".jpg", width: "360", height: "360", loading: "lazy", alt: "Painted portrait of " + c[1] + ", a " + c[0] + "." }));
+    var cap = el("figcaption"); cap.appendChild(el("b", null, c[1])); cap.appendChild(document.createTextNode(c[2]));
+    f.appendChild(cap); gallery.appendChild(f);
+  });
+
+  /* Exhibit 10: paint-all passes. */
+  var passes = [
+    { name: "First pass", ok: 72, failed: 14, note: "11 person-identity refusals, 2 failures with no reason, 1 “unsupported language”" },
+    { name: "Second pass", ok: 82, failed: 4, note: "after rewording; the heron, the owl, the stag and the ink still refused" },
+    { name: "After the third pass", ok: 86, failed: 0, note: "three variants each for the last four; 10 of the 12 painted, and a winner for each went into the tables" }
+  ];
+  var passWrap = $("passes");
+  passes.forEach(function (p) {
+    var d = el("div", { class: "pass" });
+    d.appendChild(el("b", null, p.name + ": " + p.ok + " of 86"));
+    d.appendChild(el("span", null, p.note));
+    var m = el("div", { class: "meter", role: "img", "aria-label": p.ok + " painted, " + p.failed + " refused" });
+    m.appendChild(el("i", { style: "width:" + (p.ok / 86 * 100) + "%;background: var(--o-correct)", "data-tip": p.name + "|" + p.ok + " prompts painted" }));
+    if (p.failed) m.appendChild(el("i", { style: "flex: 1;background: var(--o-wrong)", "data-tip": p.name + "|" + p.failed + " prompts refused" }));
+    d.appendChild(m); passWrap.appendChild(d);
+  });
+  tableFrom($("passes-table"), ["Pass", "Painted", "Refused"], passes.map(function (p) { return [p.name, p.ok, p.failed]; }));
+
+  /* Exhibit 12: who holds the model, minute by minute (schematic). */
+  var bursts = [[0.1, 0.55, "New case: about 8 paintings"], [2.1, 2.19, "Walk into a room: 1 painting"], [3.7, 3.79, "Walk into a room: 1 painting"], [5.4, 5.49, "New evidence: 1 painting"], [8.2, 8.29, "New evidence: 1 painting"]];
+  var panels = [
+    { title: "Before", sub: "painting inside the game", lanes: [
+      { label: "Pawprints (the game)", cls: "proc", segs: [[0, 10, "running", "The game is open"]] },
+      { label: "Image Playground extension", cls: "ext", segs: [[0.1, 10, "attached until the game quits", "Kept alive for the game's whole lifetime"]] },
+      { label: "apfel and other CLI tools", cls: "blocked", apfel: true, segs: [[0.1, 10, "GenerationError -1", "Every call fails until the game quits"]] }
+    ] },
+    { title: "After", sub: "painting in Pawprints Painter", lanes: [
+      { label: "Pawprints (the game)", cls: "proc", segs: [[0, 10, "running", "The game is open"]] },
+      { label: "Pawprints Painter", cls: "ext", segs: bursts.map(function (b) { return [b[0], b[1], "", b[2] + ", then quits 2.5 s later"]; }) },
+      { label: "apfel and other CLI tools", cls: "blocked", apfel: true, segs: bursts.map(function (b) { return [b[0], b[1], "", "Blocked only while the helper runs"]; }) }
+    ] }
+  ];
+  var avail = $("avail-chart"), availRows = [];
+  panels.forEach(function (p) {
+    var panel = el("div", { class: "avail-panel" });
+    var h = el("h4", null, p.title); h.appendChild(el("small", null, p.sub)); panel.appendChild(h);
+    p.lanes.forEach(function (lane) {
+      var row = el("div", { class: "lane" });
+      row.appendChild(el("div", { class: "lane-label" }, lane.label));
+      var track = el("div", { class: "lane-track" + (lane.apfel ? " apfel" : ""), role: "img", "aria-label": p.title + ", " + lane.label + ": " + lane.segs.map(function (s) { return s[3]; }).join("; ") });
+      lane.segs.forEach(function (s) {
+        var seg = el("div", { class: "seg " + lane.cls, style:"left:" + (s[0] * 10) + "%;width:" + ((s[1] - s[0]) * 10) + "%", "data-tip": lane.label + "|" + s[3] }, s[2]);
+        track.appendChild(seg);
+        availRows.push([p.title, lane.label, s[0].toFixed(1) + "–" + s[1].toFixed(1) + " min", s[3]]);
+      });
+      row.appendChild(track); panel.appendChild(row);
+    });
+    avail.appendChild(panel);
+  });
+  var aAxis = el("div", { class: "avail-axis", "aria-hidden": "true" }); aAxis.appendChild(el("div"));
+  var aTicks = el("div", { class: "ticks" });
+  [0, 2, 4, 6, 8, 10].forEach(function (t) { aTicks.appendChild(el("span", { style: "left:" + (t * 10) + "%" }, t === 10 ? "10 min" : String(t))); });
+  aAxis.appendChild(aTicks); avail.appendChild(aAxis);
+  tableFrom($("avail-table"), ["Setup", "Process", "Minutes", "What happens"], availRows);
+
+  /* Exhibit 13: the session, top to bottom. */
+  function mins(t) { var p = t.split(":"); return (+p[0]) * 60 + (+p[1]); }
+  var t0 = mins("20:15"), t1 = mins("22:50"), k = 4.6;
+  var me = [
+    ["20:18", "20:22", "Docs, probes, five ideas"],
+    ["20:22", "20:50", "Wait for the subagent's ranking", true],
+    ["20:50", "21:01", "Engine, content tables, first tests"],
+    ["21:01", "21:11", "Voice and the command-line harness"],
+    ["21:11", "21:35", "Image Playground, the SwiftUI app, the first bundle, test-painting every prompt"],
+    ["21:35", "21:57", "Wait for the play-test", true],
+    ["21:57", "22:14", "Find the error -1 bug, build the Painter helper"],
+    ["22:14", "22:25", "Three plots instead of one"],
+    ["22:25", "22:45", "Fixes from the last play-test, screenshots, README"]
+  ];
+  var sub = [
+    ["20:21", "20:50", "Round 1: rank the five ideas, probe the model"],
+    ["20:50", "21:08", "Round 2: theft or murder? Can it reveal facts?"],
+    ["21:33", "21:57", "Round 3: first play-test; every line falls back"],
+    ["22:25", "22:34", "Round 4: five cases, blind, 97 lines"]
+  ];
+  var marks = [
+    ["20:59", "First tests pass"], ["21:16", "First app build"], ["21:34", "Game launched; apfel fails with -1", true],
+    ["22:15", "apfel works with the game open"], ["22:34", "Final play-test: 1 fallback in 97 lines"]
+  ];
+  var session = $("session");
+  var cols = el("div", { class: "session-cols", "aria-hidden": "true" });
+  ["", "Me, building", "The subagent", "Milestones"].forEach(function (h) { cols.appendChild(el("div", { class: "colhead" }, h)); });
+  session.appendChild(cols);
+  var body = el("div", { class: "session-body", style: "height:" + ((t1 - t0) * k) + "px" });
+  session.appendChild(body);
+  ["20:30", "21:00", "21:30", "22:00", "22:30"].forEach(function (h) {
+    var line = el("div", { class: "hour", style: "top:" + ((mins(h) - t0) * k) + "px" });
+    line.appendChild(el("span", null, h)); body.appendChild(line);
+  });
+  // Column geometry mirrors .session-cols: 58px | 1fr | 1fr | 210px with 14px gaps.
+  function colX(i) {
+    var w = body.clientWidth, fr = (w - 58 - 210 - 42) / 2;
+    return [[58 + 14, fr], [58 + 14 + fr + 14, fr], [58 + 14 + 2 * fr + 28, 210]][i];
+  }
+  var blocks = [];
+  function place() {
+    blocks.forEach(function (b) {
+      if (b.col < 2) {
+        var c = colX(b.col);
+        b.node.style.left = c[0] + "px"; b.node.style.width = c[1] + "px";
+      } else {
+        var m = colX(2);
+        b.node.style.left = "58px"; b.node.style.width = (m[0] - 64) + "px";
+        b.label.style.left = m[0] + "px"; b.label.style.width = m[1] + "px";
+      }
+    });
+  }
+  function block(list, col, cls) {
+    list.forEach(function (b) {
+      var top = (mins(b[0]) - t0) * k, h = Math.max(18, (mins(b[1]) - mins(b[0])) * k - 3);
+      var n = el("div", { class: "blk " + cls + (b[3] ? " idle" : ""), style: "top:" + top + "px;height:" + h + "px", "data-tip": b[0] + "–" + b[1] + "|" + b[2] });
+      var tm = el("time", null, b[0]); n.appendChild(tm); n.appendChild(document.createTextNode(b[2]));
+      body.appendChild(n); blocks.push({ node: n, col: col });
+    });
+  }
+  block(me, 0, "me"); block(sub, 1, "sub");
+  marks.forEach(function (m) {
+    var top = (mins(m[0]) - t0) * k;
+    var line = el("div", { class: "mark" + (m[2] ? " hot" : ""), style: "top:" + top + "px" });
+    var label = el("div", { class: "mark-label" + (m[2] ? " hot" : ""), style: "top:" + top + "px" });
+    label.appendChild(el("time", null, m[0])); label.appendChild(document.createTextNode(m[1]));
+    body.appendChild(line); body.appendChild(label);
+    blocks.push({ node: line, label: label, col: 2 });
+  });
+  place();
+  window.addEventListener("resize", place);
+})();
+</script>
+</body>
+</html>

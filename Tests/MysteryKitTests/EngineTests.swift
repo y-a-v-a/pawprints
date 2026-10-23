@@ -281,6 +281,23 @@ import Testing
         #expect(await v.quickTopic("Did you see the fox anywhere?", mentioned: fox.id, room: nil, asking: other.id) == .aboutSuspect(fox.id))
     }
 
+    @Test func relationshipsReadInEveryPerson() {
+        for seed in 0..<40 as Range<UInt64> {
+            for s in CaseGenerator.make(seed: seed).suspects {
+                let mine = "I " + s.relationshipInFirstPerson, yours = "You " + s.relationshipInSecondPerson
+                #expect(!mine.hasPrefix("I is ") && !mine.hasPrefix("I has "), "\(mine)")
+                #expect(!yours.hasPrefix("You is ") && !yours.hasPrefix("You has "), "\(yours)")
+            }
+        }
+    }
+
+    @Test func stuckRepliesAreCaught() {
+        #expect(Voice.isRunaway(String(repeating: "I-", count: 40)))
+        #expect(Voice.isRunaway(Array(repeating: "no", count: 14).joined(separator: " ")))
+        #expect(!Voice.isRunaway("N-no! I didn't take it! I can't say where I was, but I didn't take it!"))
+        #expect(!Voice.isRunaway("Oh, a good-for-nothing scallywag, that one, and no mistake about it."))
+    }
+
     @Test func speciesNamesFindSuspects() async {
         let (v, m) = voice { $0.suspects.contains { $0.species == "owl" } }
         let owl = m.suspects.first { $0.species == "owl" }!

@@ -86,7 +86,7 @@ public actor Voice {
         return """
         You are an actor playing \(s.name), a \(s.isFemale ? "female" : "male") \(s.species), in a cosy, gentle detective story for all ages. \
         Every character in this world is an animal; there are no humans.
-        Who you are: \(s.occupation). You \(s.relationship). You are \(s.personality).
+        Who you are: \(s.occupation). You \(s.relationshipInSecondPerson). You are \(s.personality).
         How you speak: \(s.voice). You often begin with things like "\(s.catchphrases.joined(separator: "\", \""))".
         The situation: \(m.item) has vanished during \(m.occasion) at \(m.place), and Inspector Apfel is questioning everyone.
         Each turn you get the Inspector's words and a director's note. Say what the note asks, in your own voice. \
@@ -130,7 +130,7 @@ public actor Voice {
                 var line = Self.tidy(raw, maxSentences: limit, speaker: s)
                 debug("attempt \(attempt): \(line)")
                 if attempt == 2 { line = keepGrounded(line, source: source, speaker: s) }
-                guard !line.isEmpty else { continue }
+                guard !line.isEmpty, !Self.isRunaway(line) else { continue }
                 let keepsFacts = directive.mustMention.allSatisfy { $0.isMentioned(in: line) }
                     && directive.mustContain.allSatisfy { line.lowercased().contains($0) }
                 if attempt < 2 {
@@ -168,14 +168,15 @@ public actor Voice {
         lineCount[s.id] = n + 1
         guard n % 3 == 0, !s.catchphrases.isEmpty, let first = line.split(separator: " ").first else { return line }
         let word = first.lowercased().trimmingCharacters(in: .punctuationCharacters)
-        let flourishes = Set(["oh", "ah", "well", "aye", "ahem", "harrumph", "darling", "ooh", "now", "hmm", "hmph",
+        let flourishes = Set(["oh", "ah", "well", "very", "ha", "aye", "ahem", "harrumph", "darling", "ooh", "now", "hmm", "hmph",
                               "ahoy", "really", "my", "begging", "strictly", "blow", "look"]
             + s.catchphrases.compactMap { $0.split(separator: " ").first?.lowercased().trimmingCharacters(in: .punctuationCharacters) })
         guard !flourishes.contains(word) else { return line }
         let opener = s.catchphrases[(n / 3) % s.catchphrases.count]
         // After "Ooh, dearie," an ordinary opening word flows on in lower case; names keep their capital.
         let ordinary: Set<String> = ["the", "it", "that", "there", "this", "what", "we", "you", "a", "an", "not", "no",
-                                     "yes", "as", "between", "funny", "such", "so", "nothing", "half", "heading", "how", "and"]
+                                     "yes", "as", "between", "funny", "such", "so", "nothing", "half", "heading", "how", "and",
+                                     "me", "reading", "decent"]
         let rest = opener.hasSuffix(",") && ordinary.contains(word) ? line.prefix(1).lowercased() + line.dropFirst() : line
         return opener + " " + rest
     }
@@ -188,7 +189,8 @@ public actor Voice {
         var line = ""
         for try await snapshot in session.streamResponse(to: prompt, generating: SpokenLine.self, options: options) {
             line = snapshot.content.line ?? line
-            if Self.sentenceCount(line) >= maxSentences || line.split(separator: " ").count > 20 * maxSentences || Date() > deadline {
+            if Self.sentenceCount(line) >= maxSentences || line.split(separator: " ").count > 20 * maxSentences
+                || Self.isRunaway(line) || Date() > deadline {
                 line = Self.completeSentences(line)
                 break
             }
@@ -380,6 +382,16 @@ public actor Voice {
     static func completeSentences(_ text: String) -> String {
         let done = sentences(text).filter { $0.trimmingCharacters(in: .whitespaces).last.map { ".!?".contains($0) } ?? false }
         return done.isEmpty ? text : done.joined()
+    }
+
+    /// A reply that has got stuck: a rattled suspect's "I-I-I-I-…" that never ends a word,
+    /// let alone a sentence, or the same word over and over.
+    static func isRunaway(_ text: String) -> Bool {
+        let words = text.lowercased().split { $0.isWhitespace }
+        if words.contains(where: { $0.count > 30 }) { return true }
+        guard words.count >= 12 else { return false }
+        let counts = Dictionary(words.map { ($0, 1) }, uniquingKeysWith: +)
+        return Double(counts.values.max() ?? 0) / Double(words.count) > 0.5
     }
 
     static func similarity(_ a: String, _ b: String) -> Double {
